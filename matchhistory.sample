@@ -1,0 +1,72 @@
+{
+    "result": {
+        "status": 1,
+        "num_results": 1,
+        "total_results": 500,
+        "results_remaining": 499,
+        "matches": [
+            {
+                "match_id": 2069245018,
+                "match_seq_num": 1821027382,
+                "start_time": 1452437096,
+                "lobby_type": 0,
+                "radiant_team_id": 0,
+                "dire_team_id": 0,
+                "players": [
+                    {
+                        "account_id": 144725945,
+                        "player_slot": 0,
+                        "hero_id": 94
+                    },
+                    {
+                        "account_id": 144723329,
+                        "player_slot": 1,
+                        "hero_id": 21
+                    },
+                    {
+                        "account_id": 277772470,
+                        "player_slot": 2,
+                        "hero_id": 44
+                    },
+                    {
+                        "account_id": 144727289,
+                        "player_slot": 3,
+                        "hero_id": 29
+                    },
+                    {
+                        "account_id": 219758483,
+                        "player_slot": 4,
+                        "hero_id": 74
+                    },
+                    {
+                        "account_id": 4294967295,
+                        "player_slot": 128,
+                        "hero_id": 39
+                    },
+                    {
+                        "account_id": 4294967295,
+                        "player_slot": 129,
+                        "hero_id": 62
+                    },
+                    {
+                        "account_id": 196232412,
+                        "player_slot": 130,
+                        "hero_id": 28
+                    },
+                    {
+                        "account_id": 197317523,
+                        "player_slot": 131,
+                        "hero_id": 11
+                    },
+                    {
+                        "account_id": 143006648,
+                        "player_slot": 132,
+                        "hero_id": 8
+                    }
+                ]
+                
+            }
+        ]
+        
+    }
+}
