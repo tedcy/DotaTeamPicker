@@ -8,8 +8,23 @@ import (
 	"encoding/json"
 	"github.com/go-martini/martini"
 	"github.com/martini-contrib/render"
+	"github.com/tedcy/DotaTeamPicker/result"
 	"fmt"
 )
+
+//https://api.steampowered.com/IDOTA2Match_570/GetMatchDetails/v001/?match_id=2069245018
+//https://api.steampowered.com/IDOTA2Match_570/GetMatchHistory/V001/?account_id=144725945&matches_requested=1
+
+type Player struct {                                                               
+	Account_id string	`json:"account_id"`                                                              
+	Player_slot int `json:"player_slot"`                                        
+	Hero_id int `json:"hero_id"`                                                                    
+}                                                                                  
+                                                                                   
+type Result struct {                                                               
+	Players [10]Player `json:"players"`                                                            
+	Radiant_win string `json:"radiant_win"`                                                             
+}
 
 type Overview struct {
 	Version string
