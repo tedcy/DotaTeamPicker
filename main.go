@@ -2,13 +2,13 @@ package main
 
 import (
 	"net/http"
+	"io/ioutil"
 	"net"
 	"strings"
 	"time"
 	"encoding/json"
 	"github.com/go-martini/martini"
 	"github.com/martini-contrib/render"
-	"github.com/tedcy/DotaTeamPicker/result"
 	"fmt"
 )
 
@@ -34,6 +34,14 @@ type Overview struct {
 type apiServer struct {
 	Version string
 	Compile string
+}
+
+func httpGet(url string) ([]byte){
+	resp, _ := http.Get(url)
+	defer resp.Body.Close()
+	body, _ := ioutil.ReadAll(resp.Body)
+
+	return body
 }
 
 func (s *apiServer) overview() (int, string) {
