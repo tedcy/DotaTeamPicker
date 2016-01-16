@@ -11,123 +11,124 @@ import (
 	"github.com/martini-contrib/render"
 	"fmt"
 	"strconv"
+	"sort"
 )
 
 var getMatchDetails = "https://api.steampowered.com/IDOTA2Match_570/GetMatchDetails/v001/?"
 var getMatchHistory = "https://api.steampowered.com/IDOTA2Match_570/GetMatchHistory/V001/?"
 
 var HeroNameMap = map[string]int {
-		"Abaddon": 102,
-		"Alchemist": 73,
-		"Ancient Apparition": 68,
-		"Anti-Mage": 1,
-		"Arc Warden": 113,
-		"Axe": 2,
-		"Bane": 3,
-		"Batrider": 65,
-		"Beastmaster": 38,
-		"Bloodseeker": 4,
-		"Bounty Hunter": 62,
-		"Brewmaster": 78,
-		"Bristleback": 99,
-		"Broodmother": 61,
-		"Centaur Warrunner": 96,
-		"Chaos Knight": 81,
-		"Chen": 66,
-		"Clinkz": 56,
-		"Clockwerk": 51,
-		"Crystal Maiden": 5,
-		"Dark Seer": 55,
-		"Dazzle": 50,
-		"Death Prophet": 43,
-		"Disruptor": 87,
-		"Doom": 69,
-		"Dragon Knight": 49,
-		"Drow Ranger": 6,
-		"Earth Spirit": 107,
-		"Earthshaker": 7,
-		"Elder Titan": 103,
-		"Ember Spirit": 106,
-		"Enchantress": 58,
-		"Enigma": 33,
-		"Faceless Void": 41,
-		"Gyrocopter": 72,
-		"Huskar": 59,
-		"Invoker": 74,
-		"Io": 91,
-		"Jakiro": 64,
-		"Juggernaut": 8,
-		"Keeper of the Light": 90,
-		"Kunkka": 23,
-		"Legion Commander": 104,
-		"Leshrac": 52,
-		"Lich": 31,
-		"Lifestealer": 54,
-		"Lina": 25,
-		"Lion": 26,
-		"Lone Druid": 80,
-		"Luna": 48,
-		"Lycan": 77,
-		"Magnus": 97,
-		"Medusa": 94,
-		"Meepo": 82,
-		"Mirana": 9,
-		"Morphling": 10,
-		"Naga Siren": 89,
-		"Natures Prophet": 53,
-		"Necrophos": 36,
-		"Night Stalker": 60,
-		"Nyx Assassin": 88,
-		"Ogre Magi": 84,
-		"Omniknight": 57,
-		"Oracle": 111,
-		"Outworld Devourer": 76,
-		"Phantom Assassin": 44,
-		"Phantom Lancer": 12,
-		"Phoenix": 110,
-		"Puck": 13,
-		"Pudge": 14,
-		"Pugna": 45,
-		"Queen of Pain": 39,
-		"Razor": 15,
-		"Riki": 32,
-		"Rubick": 86,
-		"Sand King": 16,
-		"Shadow Demon": 79,
-		"Shadow Fiend": 11,
-		"Shadow Shaman": 27,
-		"Silencer": 75,
-		"Skywrath Mage": 101,
-		"Slardar": 28,
-		"Slark": 93,
-		"Sniper": 35,
-		"Spectre": 67,
-		"Spirit Breaker": 71,
-		"Storm Spirit": 17,
-		"Sven": 18,
-		"Techies": 105,
-		"Templar Assassin": 46,
-		"Terrorblade": 109,
-		"Tidehunter": 29,
-		"Timbersaw": 98,
-		"Tinker": 34,
-		"Tiny": 19,
-		"Treant Protector": 83,
-		"Troll Warlord": 95,
-		"Tusk": 100,
-		"Undying": 85,
-		"Ursa": 70,
-		"Vengeful Spirit": 20,
-		"Venomancer": 40,
-		"Viper": 47,
-		"Visage": 92,
-		"Warlock": 37,
-		"Weaver": 63,
-		"Windranger": 21,
-		"Winter Wyvern": 112,
-		"Witch Doctor": 30,
-		"Wraith King": 42,
-		"Zeus": 22,
+		"亚巴顿": 102,
+		"炼金术士": 73,
+		"远古冰魂": 68,
+		"敌法师": 1,
+		"天穹守望者": 113,
+		"斧王": 2,
+		"痛苦之源": 3,
+		"蝙蝠骑士": 65,
+		"兽王": 38,
+		"血魔": 4,
+		"赏金猎人": 62,
+		"酒仙": 78,
+		"钢背兽": 99,
+		"育母蜘蛛": 61,
+		"半人马站行者": 96,
+		"混沌骑士": 81,
+		"陈": 66,
+		"克林克玆": 56,
+		"发条地精": 51,
+		"水晶室女": 5,
+		"黑暗贤者": 55,
+		"戴泽": 50,
+		"死亡先知": 43,
+		"萨尔": 87,
+		"末日使者": 69,
+		"龙骑士": 49,
+		"卓尔游侠": 6,
+		"大地之灵": 107,
+		"撼地者": 7,
+		"上古巨神": 103,
+		"灰烬之灵": 106,
+		"魅惑魔女": 58,
+		"谜团": 33,
+		"虚空假面": 41,
+		"矮人直升机": 72,
+		"哈斯卡": 59,
+		"祈求者": 74,
+		"艾欧": 91,
+		"杰奇洛": 64,
+		"主宰": 8,
+		"光之守卫": 90,
+		"昆卡": 23,
+		"军团指挥官": 104,
+		"拉席克": 52,
+		"巫妖": 31,
+		"噬魂鬼": 54,
+		"莉娜": 25,
+		"莱恩": 26,
+		"德鲁伊": 80,
+		"露娜": 48,
+		"狼人": 77,
+		"马格纳斯": 97,
+		"美杜莎": 94,
+		"米波": 82,
+		"米拉娜": 9,
+		"变体精灵": 10,
+		"娜迦海妖": 89,
+		"先知": 53,
+		"瘟疫法师": 36,
+		"暗夜魔王": 60,
+		"司夜刺客": 88,
+		"食人魔魔法师": 84,
+		"全能骑士": 57,
+		"神谕者": 111,
+		"殁境神蚀者": 76,
+		"幻影刺客": 44,
+		"幻影长矛手": 12,
+		"凤凰": 110,
+		"帕克": 13,
+		"帕吉": 14,
+		"帕格纳": 45,
+		"痛苦女王": 39,
+		"剃刀": 15,
+		"力丸": 32,
+		"拉比克": 86,
+		"沙王": 16,
+		"暗影恶魔": 79,
+		"影魔": 11,
+		"暗影萨满": 27,
+		"沉默术士": 75,
+		"天怒法师": 101,
+		"斯拉达": 28,
+		"斯拉克": 93,
+		"狙击手": 35,
+		"幽鬼": 67,
+		"裂魂人": 71,
+		"风暴之灵": 17,
+		"斯温": 18,
+		"工程师": 105,
+		"圣堂刺客": 46,
+		"恐怖利刃": 109,
+		"潮汐猎人": 29,
+		"伐木机": 98,
+		"修补匠": 34,
+		"小小": 19,
+		"树精卫士": 83,
+		"巨魔战将": 95,
+		"巨牙海民": 100,
+		"不朽尸王": 85,
+		"熊战士": 70,
+		"复仇之魂": 20,
+		"剧毒术士": 40,
+		"冥界亚龙": 47,
+		"维萨吉": 92,
+		"术士": 37,
+		"编织者": 63,
+		"风行者": 21,
+		"寒冬飞龙": 112,
+		"巫医": 30,
+		"冥魂大帝": 42,
+		"宙斯": 22,
 }
 
 var HeroIdMap map[int]string
@@ -162,7 +163,7 @@ type MatchHistory struct {
 
 type PlayerInfo struct {
 	MatchCount int
-	MatchId int
+	MaxMatchId int
 	HeroWins map[string]int
 	HeroCounts map[string]int
 	HeroBeatWins map[string]int
@@ -225,12 +226,39 @@ func httpGet(url string) ([]byte){
 	return body
 }
 
+func MapSort(p map[string]float32) PairList{
+  pl := make(PairList, len(p))
+  i := 0
+  for k, v := range p {
+    pl[i] = Pair{k, v}
+    i++
+  }
+  sort.Sort(pl)
+  return pl
+}
+
+type Pair struct {
+  Key string
+  Value float32
+}
+
+type PairList []Pair
+
+func (p PairList) Len() int { return len(p) }
+func (p PairList) Less(i, j int) bool { return p[i].Value < p[j].Value }
+func (p PairList) Swap(i, j int){ p[i], p[j] = p[j], p[i] }
+
 func (s *apiServer) showOverview() (int, string) {
-	var o struct {Version string;Compile string}
-	o.Version = s.Version
-	o.Compile = s.Compile
-	b, _ := json.Marshal(o)
-	return 200, string(b)
+	var show []map[string]string
+	for _, overview := range s.overview {
+		heroBeatWinRate := make(map[string]string)
+		for name, counts := range overview.Players.HeroBeatCounts {
+			heroBeatWinRate[name] = fmt.Sprintf("%d-%d",overview.Players.HeroBeatWins[name],counts)
+        }
+		show = append(show, heroBeatWinRate)
+    }
+	data, _ := json.MarshalIndent(show,"", "    ")
+	return 200, string(data)
 }
 
 func MergeHeroName(heroName string, enemyHeroName string) string{
@@ -291,13 +319,13 @@ func (p *PlayerInfo) updatePlayerInfo(accountId string, data []byte) {
         }
 	}
 	fmt.Println("ZeusWins")
-	fmt.Println(p.HeroWins["Zeus"])
+	fmt.Println(p.HeroWins["宙斯"])
 	fmt.Println("ZeusCounts")
-	fmt.Println(p.HeroCounts["Zeus"])
+	fmt.Println(p.HeroCounts["宙斯"])
 	fmt.Println("ZeusBeatJuggernautWins")
-	fmt.Println(p.HeroBeatWins["Zeus-Juggernaut"])
+	fmt.Println(p.HeroBeatWins["宙斯-主宰"])
 	fmt.Println("ZeusBeatJuggernautCounts")
-	fmt.Println(p.HeroBeatCounts["Zeus-Juggernaut"])
+	fmt.Println(p.HeroBeatCounts["宙斯-主宰"])
 	fmt.Println("")
 }
 
@@ -314,23 +342,24 @@ func (s *apiServer) fetchId(params martini.Params) (int, string) {
 	if(s.Players[accountId] == nil) {
 		s.Players[accountId] = new(PlayerInfo)
 	}
+	OldMaxMatchId := s.Players[accountId].MaxMatchId
 	if matchHistory.Result.NumResults != 0 {
-		if matchHistory.Result.Matches[0].MatchId <= s.Players[accountId].MatchId {
+		if matchHistory.Result.Matches[0].MatchId <= s.Players[accountId].MaxMatchId {
 			return 200, "NoNewData"
 		}
-		s.Players[accountId].MatchId = matchHistory.Result.Matches[0].MatchId
+		s.Players[accountId].MaxMatchId = matchHistory.Result.Matches[0].MatchId
     }
 	defer s.Save()
 	for {
 		fmt.Printf("matchHistory.Result.NumResults %d\n",matchHistory.Result.NumResults)
-		if matchHistory.Result.NumResults == 0 {
-			break;
-		}
 		//一轮解析开始
 		var curMatchId int
 		for _, match := range matchHistory.Result.Matches {
 			//获取数据
 			curMatchId = match.MatchId
+			if curMatchId == OldMaxMatchId {
+				return 200, "OK"
+            }
 			data = httpGet(getMatchDetails + "&match_id=" + strconv.Itoa(curMatchId) + "&key=" + key)
 			s.Players[accountId].updatePlayerInfo(accountId, data)
 		}
@@ -338,8 +367,14 @@ func (s *apiServer) fetchId(params martini.Params) (int, string) {
 		fmt.Printf("MatchCount %d\n",s.Players[accountId].MatchCount)
 		//一轮解析结束
 
-		data = httpGet(reqUrl + "&matches_requested=100" + "&start_at_match_id=" + strconv.Itoa(curMatchId))
+		data = httpGet(reqUrl + "&matches_requested=100" + "&start_at_match_id=" + strconv.Itoa(curMatchId - 1))
 		json.Unmarshal(data,&matchHistory)
+		if matchHistory.Result.NumResults == 0 {
+			break;
+		}
+		if curMatchId == matchHistory.Result.Matches[0].MatchId {
+			return 200, "OK"
+        }
     }
 	return 200, "OK"
 }
@@ -380,8 +415,8 @@ func newApiServer() http.Handler{
 }
 
 func serve() error{
-	l, err := net.Listen("tcp", "172.17.140.76:8081")
-	//l, err := net.Listen("tcp", "192.168.52.128:8081")
+	//l, err := net.Listen("tcp", "172.17.140.76:8081")
+	l, err := net.Listen("tcp", "192.168.52.128:8081")
 	if err != nil {
 		return err
     }
