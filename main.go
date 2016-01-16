@@ -14,7 +14,7 @@ import (
 )
 
 var getMatchDetails = "https://api.steampowered.com/IDOTA2Match_570/GetMatchDetails/v001/?"
-var getMatchHistory = "https://api.steampowered.com/IDOTA2Match_570/GetMatchHistory/V001/?matches_requested=500"
+var getMatchHistory = "https://api.steampowered.com/IDOTA2Match_570/GetMatchHistory/V001/?"
 
 var HeroNameMap = map[string]int {
 		"Abaddon": 102,
@@ -133,8 +133,9 @@ var HeroNameMap = map[string]int {
 var HeroIdMap map[int]string
 
 func initHeroIdMap() {
-	for _, heroName := range HeroIdMap {
-		HeroIdMap[HeroNameMap[heroName]] = heroName
+	HeroIdMap = make(map[int]string)
+	for heroName, heroId := range HeroNameMap {
+		HeroIdMap[heroId] = heroName
     }
 }
 
@@ -152,6 +153,7 @@ type MatchDetails struct {
 type MatchHistory struct {
 	Result struct {
 		Status int
+		NumResults int `json:"num_results"`
 		Matches []struct {
 			MatchId int `json:"match_id"`
 		} `json:"matches"`
@@ -159,34 +161,71 @@ type MatchHistory struct {
 }
 
 type PlayerInfo struct {
-	heroWins map[string]int
-	heroCounts map[string]int
-	heroBeatWins map[string]int
-	heroBeatCounts map[string]int
+	MatchCount int
+	MatchId int
+	HeroWins map[string]int
+	HeroCounts map[string]int
+	HeroBeatWins map[string]int
+	HeroBeatCounts map[string]int
 }
 
 func (p *PlayerInfo) Init() {
-	p.heroWins = make(map[string]int)
-	p.heroCounts = make(map[string]int)
-	p.heroBeatWins = make(map[string]int)
-	p.heroBeatCounts = make(map[string]int)
+	p.HeroWins = make(map[string]int)
+	p.HeroCounts = make(map[string]int)
+	p.HeroBeatWins = make(map[string]int)
+	p.HeroBeatCounts = make(map[string]int)
 }
 
 type apiServer struct {
 	Version string
 	Compile string
 	Players map[string]*PlayerInfo
+	overview []PlayerOverview
 }
 
+type PlayerOverview struct {
+	AccountId string
+	Players PlayerInfo
+}
+
+func (s *apiServer) Save() {
+	for name, playerInfo := range s.Players {
+		var tmp PlayerOverview
+		tmp.AccountId = name
+		tmp.Players = *playerInfo
+		s.overview = append(s.overview, tmp)
+    }
+	data, _ := json.MarshalIndent(s.overview,"", "    ")
+	ioutil.WriteFile("overview.data", data, 0666)
+	//var overview []PlayerOverview
+	//json.Unmarshal(data, &overview)
+	//fmt.Println(overview)
+}
+
+func (s *apiServer) Load() {
+	s.Players = make(map[string]*PlayerInfo)
+
+	data, err := ioutil.ReadFile("overview.data")
+	if err != nil {
+		fmt.Println(err)
+		return
+    }
+	json.Unmarshal(data, &s.overview)
+	for _, overview := range s.overview {
+		s.Players[overview.AccountId] = &overview.Players
+    }
+}
+
+
 func httpGet(url string) ([]byte){
+	fmt.Println("DEBUG-URL" + url)
 	resp, _ := http.Get(url)
 	defer resp.Body.Close()
 	body, _ := ioutil.ReadAll(resp.Body)
-
 	return body
 }
 
-func (s *apiServer) overview() (int, string) {
+func (s *apiServer) showOverview() (int, string) {
 	var o struct {Version string;Compile string}
 	o.Version = s.Version
 	o.Compile = s.Compile
@@ -194,48 +233,113 @@ func (s *apiServer) overview() (int, string) {
 	return 200, string(b)
 }
 
-func (s *apiServer) updatePlayerInfo(accountId string, data []byte) {
+func MergeHeroName(heroName string, enemyHeroName string) string{
+	return heroName + "-" + enemyHeroName
+}
+
+func SplitHeroName(name string) (string, string) {
+	s := strings.Split(name, "-")
+	return s[0], s[1]
+}
+
+func (p *PlayerInfo) updatePlayerInfo(accountId string, data []byte) {
+	if(p.HeroWins == nil) {
+		p.Init()
+    }
+
 	var matchDetails MatchDetails
 	json.Unmarshal(data,&matchDetails)
 	for _, player := range matchDetails.Result.Players {
-		fmt.Println(player.AccountId)
-		fmt.Println(accountId)
+		//数据分析的玩家
 		if strconv.Itoa(player.AccountId) == accountId {
 			HeroName := HeroIdMap[player.HeroId]
-			if(s.Players[accountId].heroWins == nil) {
-				s.Players[accountId].Init()
+			//fmt.Println(strconv.Itoa(player.HeroId) + " " + HeroName)
+			//英雄出场数+1
+			p.HeroCounts[HeroName]++
+			//天辉
+			if player.PlayerSlot < 5 {
+				var enemyHeroName string
+				for _, enemyPlayer := range matchDetails.Result.Players[5:] {
+					//夜宴英雄名字
+					enemyHeroName = HeroIdMap[enemyPlayer.HeroId]
+					//对抗次数+1
+					p.HeroBeatCounts[MergeHeroName(HeroName,enemyHeroName)]++
+				}
+				if matchDetails.Result.RadiantWin == true {
+					//对抗获胜次数+1
+					p.HeroBeatWins[MergeHeroName(HeroName,enemyHeroName)]++
+					//获胜次数+1
+					p.HeroWins[HeroName]++
+				}
+			} 
+			//夜宴
+			if player.PlayerSlot > 5 {
+				var enemyHeroName string
+				for _, enemyPlayer := range matchDetails.Result.Players[:5] {
+					//天辉英雄名字
+					enemyHeroName = HeroIdMap[enemyPlayer.HeroId]
+					//对抗次数+1
+					p.HeroBeatCounts[MergeHeroName(HeroName,enemyHeroName)]++
+				}
+				if matchDetails.Result.RadiantWin == false{
+					//对抗获胜次数+1
+					p.HeroBeatWins[MergeHeroName(HeroName,enemyHeroName)]++
+					//获胜次数+1
+					p.HeroWins[HeroName]++
+				}
             }
-			s.Players[accountId].heroBeatCounts[HeroName]++
-			if player.PlayerSlot < 5 && matchDetails.Result.RadiantWin == true {
-				s.Players[accountId].heroBeatWins[HeroName]++
-            }
-			fmt.Println(HeroName)
         }
 	}
-	fmt.Println(s.Players[accountId].heroBeatWins["Medusa"])
-	fmt.Println(s.Players[accountId].heroBeatCounts["Medusa"])
+	fmt.Println("ZeusWins")
+	fmt.Println(p.HeroWins["Zeus"])
+	fmt.Println("ZeusCounts")
+	fmt.Println(p.HeroCounts["Zeus"])
+	fmt.Println("ZeusBeatJuggernautWins")
+	fmt.Println(p.HeroBeatWins["Zeus-Juggernaut"])
+	fmt.Println("ZeusBeatJuggernautCounts")
+	fmt.Println(p.HeroBeatCounts["Zeus-Juggernaut"])
 	fmt.Println("")
 }
 
 func (s *apiServer) fetchId(params martini.Params) (int, string) {
 	accountId := params["account_id"]
 	key := params["key"]
-	data := httpGet(getMatchHistory + "&account_id=" + accountId + "&key=" + key)
+	reqUrl := getMatchHistory + "&account_id=" + accountId + "&key=" + key
+	data := httpGet(reqUrl + "&matches_requested=1")
 	//fmt.Printf("%s\n",data);
 	var matchHistory MatchHistory
 	json.Unmarshal(data,&matchHistory)
-	fmt.Println(matchHistory);
-	var player PlayerInfo
-	s.Players[accountId] = &player
-	var matchId string
-	for _, match := range matchHistory.Result.Matches {
-		if match.MatchId == 0 {
-			return 502, "ERROR"
+	//fmt.Println(matchHistory);
+
+	if(s.Players[accountId] == nil) {
+		s.Players[accountId] = new(PlayerInfo)
+	}
+	if matchHistory.Result.NumResults != 0 {
+		if matchHistory.Result.Matches[0].MatchId <= s.Players[accountId].MatchId {
+			return 200, "NoNewData"
 		}
-		
-		matchId = strconv.Itoa(match.MatchId)
-		data = httpGet(getMatchDetails + "&match_id=" + matchId + "&key=" + key)
-		s.updatePlayerInfo(accountId, data)
+		s.Players[accountId].MatchId = matchHistory.Result.Matches[0].MatchId
+    }
+	defer s.Save()
+	for {
+		fmt.Printf("matchHistory.Result.NumResults %d",matchHistory.Result.NumResults)
+		if matchHistory.Result.NumResults == 0 {
+			break;
+		}
+		//一轮解析开始
+		var curMatchId int
+		for _, match := range matchHistory.Result.Matches {
+			//获取数据
+			curMatchId = match.MatchId
+			data = httpGet(getMatchDetails + "&match_id=" + strconv.Itoa(curMatchId) + "&key=" + key)
+			s.Players[accountId].updatePlayerInfo(accountId, data)
+		}
+		s.Players[accountId].MatchCount += matchHistory.Result.NumResults
+		fmt.Printf("MatchCount %d\n",s.Players[accountId].MatchCount)
+		//一轮解析结束
+
+		data = httpGet(reqUrl + "&matches_requested=100" + "&start_at_match_id=" + strconv.Itoa(curMatchId))
+		json.Unmarshal(data,&matchHistory)
     }
 	return 200, "OK"
 }
@@ -260,7 +364,7 @@ func newApiServer() http.Handler{
 		c.Next()
     })
 	api := &apiServer{Version: "1.00", Compile: "go"}
-	api.Players = make(map[string]*PlayerInfo)
+	api.Load()
 	m.Use(func(c martini.Context, w http.ResponseWriter) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
     })
@@ -268,7 +372,7 @@ func newApiServer() http.Handler{
 	r.Get("/", func(r render.Render) {
 		r.Redirect("/overview")
     })
-	r.Get("/overview", api.overview)
+	r.Get("/overview", api.showOverview)
 	r.Get("/fetch/:account_id/:key", api.fetchId)
 	m.MapTo(r, (*martini.Routes)(nil))
 	m.Action(r.Handle)
@@ -276,7 +380,8 @@ func newApiServer() http.Handler{
 }
 
 func serve() error{
-	l, err := net.Listen("tcp", "192.168.52.128:8081")
+	l, err := net.Listen("tcp", "172.17.140.76:8081")
+	//l, err := net.Listen("tcp", "192.168.52.128:8081")
 	if err != nil {
 		return err
     }
