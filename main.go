@@ -322,7 +322,7 @@ func (s *apiServer) fetchId(params martini.Params) (int, string) {
     }
 	defer s.Save()
 	for {
-		fmt.Printf("matchHistory.Result.NumResults %d",matchHistory.Result.NumResults)
+		fmt.Printf("matchHistory.Result.NumResults %d\n",matchHistory.Result.NumResults)
 		if matchHistory.Result.NumResults == 0 {
 			break;
 		}
