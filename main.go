@@ -497,7 +497,7 @@ func (p *PlayerInfo) updatePlayerInfo(accountId string, data []byte) {
 					enemyHeroName = HeroIdMap[enemyPlayer.HeroId]
 					//对抗次数+1
 					p.HeroBeatCounts[MergeHeroName(HeroName,enemyHeroName)]++
-					if matchDetails.Result.RadiantWin == true {
+					if matchDetails.Result.RadiantWin == false {
 						//对抗获胜次数+1
 						p.HeroBeatWins[MergeHeroName(HeroName,enemyHeroName)]++
 					}
