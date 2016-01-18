@@ -577,10 +577,10 @@ func newApiServer() http.Handler{
 				}
             }
 			fmt.Printf("API call %s from %s [%s]\n", path, remoteAddr, headerAddr)
-			if ip := strings.Split(remoteAddr,":");ip[0] != "172.17.140.52" {
-				w.WriteHeader(404)
-				return 
-            }
+			//if ip := strings.Split(remoteAddr,":");ip[0] != "172.17.140.52" {
+			//	w.WriteHeader(404)
+			//	return 
+            //}
         }
 		c.Next()
     })
