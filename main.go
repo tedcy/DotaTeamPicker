@@ -269,7 +269,7 @@ func (s *apiServer) teamPick(params martini.Params) (int ,string ){
 			heroWinRate[name] = winRate
         }
 		for name, counts := range overview.Players.HeroBeatCounts {
-			if counts >= 3 {
+			if counts >= 2 {
 				originHeroName, enemyHeroName := SplitHeroName(name)
 				if heroBeatWinRate[enemyHeroName] == nil {
 					heroBeatWinRate[enemyHeroName] = make(map[string]float32)
@@ -310,18 +310,105 @@ func (s *apiServer) teamPick(params martini.Params) (int ,string ){
         }
 		choiceHeroRateMap := make(map[string]float32)
 		
-		//遍历目标英雄
-		//fmt.Println("\n\n\n",HeroMap)
 		for _, targetHeroName := range heroList {
-			//遍历可供选择的英雄
-			for choiceHeroName, _ := range HeroMap {
-				fmt.Println(targetHeroName,choiceHeroName,heroBeatWinRate[targetHeroName][choiceHeroName])
-				choiceHeroRateMap[choiceHeroName] += heroBeatWinRate[targetHeroName][choiceHeroName]
+			delete(HeroMap,targetHeroName)
+		}
+		//遍历可供选择的英雄
+		for choiceHeroName, _ := range HeroMap {
+			//遍历目标英雄
+			//fmt.Println("\n\n\n",HeroMap)
+			for _, targetHeroName := range heroList {
+				//fmt.Println(targetHeroName,choiceHeroName,heroBeatWinRate[targetHeroName][choiceHeroName])
+				if winRate, ok := heroBeatWinRate[targetHeroName][choiceHeroName];ok {
+					choiceHeroRateMap[choiceHeroName] += winRate
+                }
 			}
+			choiceHeroRateMap[choiceHeroName]/=float32(len(heroList))
         }
 		data, _ := json.Marshal(choiceHeroRateMap)
-		show += string(data)
-		show += "\n"
+		show += ("用户ID" + overview.AccountId + string(data) + "\n")
+    }
+
+	return 200, show
+}
+
+func (s *apiServer) teamPickWinRate(params martini.Params) (int ,string ){
+	heroListStr := params["herolist"]
+	var show string
+	heroList := strings.Split(heroListStr,"-")
+	if len(heroList) == 0 {
+		return 200 ,"NoHero"
+	}
+	
+	for _, overview := range s.overview {
+		heroBeatWinRate := make(map[string]map[string]float32)
+		heroWinRate := make(map[string]float32) 
+		for name, counts := range overview.Players.HeroCounts{			
+			winRate := float32(overview.Players.HeroWins[name]) / float32(counts)
+			heroWinRate[name] = winRate
+        }
+		for name, counts := range overview.Players.HeroBeatCounts {
+			if counts >= 2 {
+				originHeroName, enemyHeroName := SplitHeroName(name)
+				if heroBeatWinRate[enemyHeroName] == nil {
+					heroBeatWinRate[enemyHeroName] = make(map[string]float32)
+                }
+				winRate := float32(overview.Players.HeroBeatWins[name]) / float32(counts)
+				//data := fmt.Sprintf("%s%3d -%3d，胜率%4.4g%%，克制指数%4.4g%%\n",
+				//name, overview.Players.HeroBeatWins[name],counts, winRate*100,  (winRate - heroWinRate[originHeroName]) * 100)
+				heroBeatWinRate[enemyHeroName][originHeroName] =  winRate
+			}
+        }
+		var HeroMap map[string]float32
+		var maxLen int
+		var haveTarget bool
+		//遍历 敌方英雄-自己的英雄-克制指数列表
+		//选出最大的列表
+		for enemyHeroName, enemyHeroMap := range heroBeatWinRate {
+			//如果没有目标英雄就跳过
+			haveTarget = false
+			for _, targetHeroName := range heroList {
+				if targetHeroName == enemyHeroName {
+					//fmt.Println(targetHeroName,enemyHeroName)
+					haveTarget = true
+                }
+            }
+			if !haveTarget {
+				continue
+            }
+			if len(enemyHeroMap) > maxLen {
+				//fmt.Println(len(enemyHeroMap),maxLen)
+				maxLen = len(enemyHeroMap)
+				//fmt.Println(enemyHeroName, enemyHeroMap)
+				HeroMap = enemyHeroMap
+            }
+			//pList := MapSort(enemyHeroMap)
+			//for _, p := range pList {
+			//	show += p.Key
+            //}
+        }
+		choiceHeroRateMap := make(map[string]float32)
+		
+		for _, targetHeroName := range heroList {
+			delete(HeroMap,targetHeroName)
+        }
+		//遍历可供选择的英雄
+		for choiceHeroName, _ := range HeroMap {
+
+			//遍历目标英雄
+			//fmt.Println("\n\n\n",HeroMap)
+			for _, targetHeroName := range heroList {
+				//fmt.Println(targetHeroName,choiceHeroName,heroBeatWinRate[targetHeroName][choiceHeroName])
+				if winRate, ok := heroBeatWinRate[targetHeroName][choiceHeroName];ok {
+					choiceHeroRateMap[choiceHeroName] += winRate
+				}else {
+					choiceHeroRateMap[choiceHeroName] += 0.4
+                }
+			}
+			choiceHeroRateMap[choiceHeroName] /= float32(len(heroList))
+        }
+		data, _ := json.Marshal(choiceHeroRateMap)
+		show += ("用户ID" + overview.AccountId + string(data) + "\n")
     }
 
 	return 200, show
@@ -480,7 +567,7 @@ func newApiServer() http.Handler{
 	m.Use(render.Renderer())
 	m.Use(func(w http.ResponseWriter, req *http.Request, c martini.Context) {
 		path := req.URL.Path
-		if strings.HasPrefix(path, "/overview") {
+		if req.Method == "GET" && strings.HasPrefix(path, "/"){
 			var remoteAddr = req.RemoteAddr
 			var headerAddr string
 			for _, key := range []string{"X-Real-IP", "X-Forwarded-For"} {
@@ -490,6 +577,10 @@ func newApiServer() http.Handler{
 				}
             }
 			fmt.Printf("API call %s from %s [%s]\n", path, remoteAddr, headerAddr)
+			if ip := strings.Split(remoteAddr,":");ip[0] != "172.17.140.52" {
+				w.WriteHeader(404)
+				return 
+            }
         }
 		c.Next()
     })
@@ -505,14 +596,15 @@ func newApiServer() http.Handler{
 	r.Get("/overview", api.showOverview)
 	r.Get("/fetch/:account_id/:key", api.fetchId)
 	r.Get("/teampick/:herolist",api.teamPick)
+	r.Get("/teampickwr/:herolist",api.teamPickWinRate)
 	m.MapTo(r, (*martini.Routes)(nil))
 	m.Action(r.Handle)
 	return m
 }
 
 func serve() error{
-	//l, err := net.Listen("tcp", "172.17.140.76:8081")
-	l, err := net.Listen("tcp", "192.168.52.128:8081")
+	l, err := net.Listen("tcp", "172.17.140.76:8081")
+	//l, err := net.Listen("tcp", "192.168.52.128:8081")
 	if err != nil {
 		return err
     }
