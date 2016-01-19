@@ -371,6 +371,79 @@ func (s *apiServer) teamPickWinRate(params martini.Params) (int, string) {
 	return 200, show
 }
 
+func (s *apiServer) teamPickWinRateWithoutJSON(params martini.Params) (int, string) {
+	heroListStr := params["herolist"]
+	show := "<html>"
+	heroList := strings.Split(heroListStr, "-")
+	if len(heroList) == 0 {
+		return 200, "NoHero"
+	}
+
+	for _, overview := range s.overview {
+		heroBeatWinRate := make(map[string]map[string]float32)
+		heroWinRate := make(map[string]float32)
+		for name, counts := range overview.Players.HeroCounts {
+			winRate := float32(overview.Players.HeroWins[name]) / float32(counts)
+			heroWinRate[name] = winRate
+		}
+		for name, counts := range overview.Players.HeroBeatCounts {
+			if counts >= 2 {
+				originHeroName, enemyHeroName := SplitHeroName(name)
+				if heroBeatWinRate[enemyHeroName] == nil {
+					heroBeatWinRate[enemyHeroName] = make(map[string]float32)
+				}
+				winRate := float32(overview.Players.HeroBeatWins[name]) / float32(counts)
+				//data := fmt.Sprintf("%s%3d -%3d，胜率%4.4g%%，克制指数%4.4g%%\n",
+				//name, overview.Players.HeroBeatWins[name],counts, winRate*100,  (winRate - heroWinRate[originHeroName]) * 100)
+				heroBeatWinRate[enemyHeroName][originHeroName] = winRate
+			}
+		}
+		choiceHeroMap := make(map[string]int)
+		for _, targetHeroName := range heroList {
+			for originHeroName, _ := range heroBeatWinRate[targetHeroName] {
+				choiceHeroMap[originHeroName] = 0
+			}
+		}
+
+		choiceHeroRateMap := make(map[string]float32)
+
+		for _, targetHeroName := range heroList {
+			delete(choiceHeroMap, targetHeroName)
+		}
+		//遍历可供选择的英雄
+		for choiceHeroName, _ := range choiceHeroMap {
+
+			//遍历目标英雄
+			//fmt.Println("\n\n\n",HeroMap)
+			for _, targetHeroName := range heroList {
+				//fmt.Println(targetHeroName,choiceHeroName,heroBeatWinRate[targetHeroName][choiceHeroName])
+				if winRate, ok := heroBeatWinRate[targetHeroName][choiceHeroName]; ok {
+					choiceHeroRateMap[choiceHeroName] += winRate
+				} else {
+					choiceHeroRateMap[choiceHeroName] += 0.4
+				}
+			}
+			choiceHeroRateMap[choiceHeroName] /= float32(len(heroList))
+		}
+		show += ("<b>用户ID:" + overview.AccountId + "</b><br>")
+		if nickName, ok := configData.nickNames[overview.AccountId];ok {
+			show += ("<b>昵称:" + nickName + "</b><br>")
+        }
+		var count int
+		for choiceHeroName, winRate := range choiceHeroRateMap {
+			show = fmt.Sprintf("%s%s:%.1f%%&nbsp;&nbsp;&nbsp;&nbsp;",show,choiceHeroName,winRate*100)
+			count++
+			if (count % 5) == 0 {
+				show += "<br>"
+            }
+        }
+		show += "<br><br><br>"
+	}
+	show += "</html>"
+
+	return 200, show
+}
+
 func (s *apiServer) showOverview() (int, string) {
 	var show string
 	for _, overview := range s.overview {
@@ -470,7 +543,7 @@ func (p *PlayerInfo) updatePlayerInfo(accountId string, data []byte) {
 
 func (s *apiServer) fetchId(params martini.Params) (int, string) {
 	accountId := params["account_id"]
-	key := params["key"]
+	key := configData.key
 	reqUrl := getMatchHistory + "&account_id=" + accountId + "&key=" + key
 	data := httpGet(reqUrl + "&matches_requested=1")
 	//fmt.Printf("%s\n",data);
@@ -543,25 +616,29 @@ func newApiServer() http.Handler {
 	})
 	api := &apiServer{Version: "1.00", Compile: "go"}
 	api.Load()
-	m.Use(func(c martini.Context, w http.ResponseWriter) {
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	m.Use(func(req *http.Request, c martini.Context, w http.ResponseWriter) {
+		if req.Method == "GET" && strings.HasPrefix(req.URL.Path,"/teampickwrwithoutjson") {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		}else {
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+        }
 	})
 	r := martini.NewRouter()
 	r.Get("/", func(r render.Render) {
 		r.Redirect("/overview")
 	})
 	r.Get("/overview", api.showOverview)
-	r.Get("/fetch/:account_id/:key", api.fetchId)
+	r.Get("/fetch/:account_id", api.fetchId)
 	r.Get("/teampick/:herolist", api.teamPick)
 	r.Get("/teampickwr/:herolist", api.teamPickWinRate)
+	r.Get("/teampickwrwithoutjson/:herolist", api.teamPickWinRateWithoutJSON)
 	m.MapTo(r, (*martini.Routes)(nil))
 	m.Action(r.Handle)
 	return m
 }
 
 func serve() error {
-	l, err := net.Listen("tcp", "172.17.140.76:8081")
-	//l, err := net.Listen("tcp", "192.168.52.128:8081")
+	l, err := net.Listen("tcp", configData.addr)
 	if err != nil {
 		return err
 	}
@@ -576,8 +653,41 @@ func serve() error {
 	return err
 }
 
+var configData = &struct {
+	key string
+	addr string
+	nickNames map[string]string
+}{}
+
+func loadConfig() {
+	data, _ := ioutil.ReadFile("config")
+	configData.nickNames = make(map[string]string)
+	params := strings.Split(string(data),"\n")
+	for _, param := range params {
+		if len(param) == 0 {
+			break
+        }
+		value := strings.Split(param," ")
+		if value[0] == "key" {
+			configData.key = value[1]
+        }
+		if value[0] == "addr" {
+			configData.addr = value[1]
+        }
+		if value[0] == "nickNames" {
+			nameStrs := strings.Split(value[1],";")
+			for _, nameStr := range nameStrs {
+				names := strings.Split(nameStr,",")
+				configData.nickNames[names[0]] = names[1]
+            }
+		}
+    }
+}
+
 func main() {
 	initHeroIdMap()
+	loadConfig()
+	fmt.Println(configData)
 	err := serve()
 	fmt.Printf("%v\n", err)
 	for {
