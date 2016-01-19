@@ -429,9 +429,10 @@ func (s *apiServer) teamPickWinRateWithoutJSON(params martini.Params) (int, stri
 		if nickName, ok := configData.nickNames[overview.AccountId];ok {
 			show += ("<b>昵称:" + nickName + "</b><br>")
         }
+		choiceHeroList := MapSort(choiceHeroRateMap)
 		var count int
-		for choiceHeroName, winRate := range choiceHeroRateMap {
-			show = fmt.Sprintf("%s%s:%.1f%%&nbsp;&nbsp;&nbsp;&nbsp;",show,choiceHeroName,winRate*100)
+		for _, choiceHero := range choiceHeroList {
+			show = fmt.Sprintf("%s%s:%.1f%%&nbsp;&nbsp;&nbsp;&nbsp;",show,choiceHero.Key,choiceHero.Value*100)
 			count++
 			if (count % 5) == 0 {
 				show += "<br>"
