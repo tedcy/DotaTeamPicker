@@ -279,41 +279,20 @@ func (s *apiServer) teamPick(params martini.Params) (int, string) {
 				heroBeatWinRate[enemyHeroName][originHeroName] = winRate - heroWinRate[originHeroName]
 			}
 		}
-		var HeroMap map[string]float32
-		var maxLen int
-		var haveTarget bool
-		//遍历 敌方英雄-自己的英雄-克制指数列表
-		//选出最大的列表
-		for enemyHeroName, enemyHeroMap := range heroBeatWinRate {
-			//如果没有目标英雄就跳过
-			haveTarget = false
-			for _, targetHeroName := range heroList {
-				if targetHeroName == enemyHeroName {
-					//fmt.Println(targetHeroName,enemyHeroName)
-					haveTarget = true
-				}
+		choiceHeroMap := make(map[string]int)
+		for _, targetHeroName := range heroList {
+			for originHeroName, _ := range heroBeatWinRate[targetHeroName] {
+				choiceHeroMap[originHeroName] = 0
 			}
-			if !haveTarget {
-				continue
-			}
-			if len(enemyHeroMap) > maxLen {
-				//fmt.Println(len(enemyHeroMap),maxLen)
-				maxLen = len(enemyHeroMap)
-				//fmt.Println(enemyHeroName, enemyHeroMap)
-				HeroMap = enemyHeroMap
-			}
-			//pList := MapSort(enemyHeroMap)
-			//for _, p := range pList {
-			//	show += p.Key
-			//}
 		}
+		
 		choiceHeroRateMap := make(map[string]float32)
 
 		for _, targetHeroName := range heroList {
-			delete(HeroMap, targetHeroName)
+			delete(choiceHeroMap, targetHeroName)
 		}
 		//遍历可供选择的英雄
-		for choiceHeroName, _ := range HeroMap {
+		for choiceHeroName, _ := range choiceHeroMap {
 			//遍历目标英雄
 			//fmt.Println("\n\n\n",HeroMap)
 			for _, targetHeroName := range heroList {
