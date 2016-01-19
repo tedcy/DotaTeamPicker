@@ -495,6 +495,12 @@ func (p *PlayerInfo) updatePlayerInfo(accountId string, data []byte) {
 
 	var matchDetails MatchDetails
 	json.Unmarshal(data, &matchDetails)
+	//判断是否全部玩家选择英雄
+	for _, player := range matchDetails.Result.Players {
+		if player.HeroId == 0 {
+			return
+        }
+    }
 	for _, player := range matchDetails.Result.Players {
 		//数据分析的玩家
 		if strconv.Itoa(player.AccountId) == accountId {
