@@ -65,24 +65,24 @@ func NewApiServer() http.Handler {
 	return m
 }
 
-func searchSubStrToInt(dataStr string,subStr string) string {
+func searchSubStrToInt(dataStr string,subStr string,appendLen int) (string,int){
 	findIndex := strings.Index(dataStr,subStr)
 	if findIndex < 0 {
-		return nil
+		return "", -1
     }
-	countsIndex := findIndex + len(subStr) + 9
+	countsIndex := findIndex + len(subStr) + appendLen
 	var checkRun bool
 	var i = 0
-	for ;i != 6;i++ {
+	for ;i != 20;i++ {
 		if dataStr[countsIndex + i] < '0' || dataStr[countsIndex + i] > '9' {
 			checkRun = true
 			break
         }
     }
 	if checkRun == false {
-		return nil
+		return "", -1
     }
-	return dataStr[countsIndex:countsIndex + i]
+	return dataStr[countsIndex:countsIndex + i],countsIndex + i
 }
 
 func GetMatchCounts(accountId string) int{
@@ -92,8 +92,8 @@ func GetMatchCounts(accountId string) int{
     }
 	dataStr := string(data)
 	subStr := "</div><div style=\"font-size: 11px;color:#777;\">"
-	countsStr := searchSubStrToInt(dataStr,subStr)
-	if countsStr == nil {
+	countsStr,index := searchSubStrToInt(dataStr,subStr,9)
+	if index < 0 {
 		return -1
     }
 	counts,err := strconv.Atoi(countsStr)
@@ -105,29 +105,62 @@ func GetMatchCounts(accountId string) int{
 
 func (s *apiServer) fetchIdAll(params martini.Params) (int, string) {
 	accountId := params["account_id"]
+	key := ConfigData.key
 	reqUrl := getMatchHistoryFromDotamax + accountId + "/?skill=&ladder=&hero=-1&p=" 
 	matchCount := GetMatchCounts(accountId)
 	if(matchCount < 0) {
 		return 200,"no find id"
     }
 	subStr := "sorttable_customkey=\""
-	for index := 1,counts := 0;counts < matchCount;index++ {
+	index := 1
+
+	fmt.Println(matchCount)
+	s.Players[accountId] = new(PlayerInfo)
+	//记录且仅记录一次maxMatchId的控制器
+	var saveMaxMatchId bool
+	lastMatchId := "999999999999"
+	for counts := 0;;index++ {
 		data := httpGet(reqUrl + strconv.Itoa(index))
 		if data == nil {
 			return 502,"req error"
         }
 		dataStr := string(data)
+		var countsIndex int
+		var curMatchId string
 		for {
-			countsStr := searchSubStrToInt(dataStr,subStr)
-			if countsStr == nil {
+			curMatchId,countsIndex = searchSubStrToInt(dataStr,subStr,0)
+			if countsIndex < 0 {
+				break
+			}
+			if saveMaxMatchId == false {
+				s.Players[accountId].MaxMatchId,_ = strconv.Atoi(curMatchId)
+				saveMaxMatchId = true
+            }
+
+            {
+				//如果当前的ID比上一个大，说明抓完了
+				id, _ := strconv.Atoi(curMatchId)
+				lastId, _ := strconv.Atoi(lastMatchId)
+				if id > lastId {
+					s.Save()
+					return 200, "OK"
+                }
+			}
+
+			data = httpGet(getMatchDetails + "&match_id=" + curMatchId + "&key=" + key)
+			if data == nil {
 				return 502,"req error"
 			}
-			counts,err := strconv.Atoi(countsStr)
-			if err != nil {
-				return 502,"req error"
-			}
+			s.Players[accountId].updatePlayerInfo(accountId, data)
+			s.Players[accountId].MatchCount++
+			counts++
+			lastMatchId = curMatchId
+			fmt.Printf("MatchCount %d\n", counts)
+			fmt.Println(countsIndex)
+			dataStr = dataStr[countsIndex:]
         }
     }
+	s.Save()
 	return 200, "OK"
 }
 
