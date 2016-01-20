@@ -56,12 +56,129 @@ func NewApiServer() http.Handler {
 	})
 	r.Get("/overview", api.showOverview)
 	r.Get("/fetch/:account_id", api.fetchId)
+	r.Get("/fetchall/:account_id", api.fetchIdAll)
 	r.Get("/teampick/:herolist", api.teamPick)
 	r.Get("/teampickwr/:herolist", api.teamPickWinRate)
 	r.Get("/teampickwrwithoutjson/:herolist", api.teamPickWinRateWithoutJSON)
 	m.MapTo(r, (*martini.Routes)(nil))
 	m.Action(r.Handle)
 	return m
+}
+
+func searchSubStrToInt(dataStr string,subStr string) string {
+	findIndex := strings.Index(dataStr,subStr)
+	if findIndex < 0 {
+		return nil
+    }
+	countsIndex := findIndex + len(subStr) + 9
+	var checkRun bool
+	var i = 0
+	for ;i != 6;i++ {
+		if dataStr[countsIndex + i] < '0' || dataStr[countsIndex + i] > '9' {
+			checkRun = true
+			break
+        }
+    }
+	if checkRun == false {
+		return nil
+    }
+	return dataStr[countsIndex:countsIndex + i]
+}
+
+func GetMatchCounts(accountId string) int{
+	data := httpGet("http://dotamax.com/player/detail/" + accountId + "/")
+	if data == nil {
+		return -1
+    }
+	dataStr := string(data)
+	subStr := "</div><div style=\"font-size: 11px;color:#777;\">"
+	countsStr := searchSubStrToInt(dataStr,subStr)
+	if countsStr == nil {
+		return -1
+    }
+	counts,err := strconv.Atoi(countsStr)
+	if err != nil {
+		return -1	
+    }
+	return counts
+}
+
+func (s *apiServer) fetchIdAll(params martini.Params) (int, string) {
+	accountId := params["account_id"]
+	reqUrl := getMatchHistoryFromDotamax + accountId + "/?skill=&ladder=&hero=-1&p=" 
+	matchCount := GetMatchCounts(accountId)
+	if(matchCount < 0) {
+		return 200,"no find id"
+    }
+	subStr := "sorttable_customkey=\""
+	for index := 1,counts := 0;counts < matchCount;index++ {
+		data := httpGet(reqUrl + strconv.Itoa(index))
+		if data == nil {
+			return 502,"req error"
+        }
+		dataStr := string(data)
+		for {
+			countsStr := searchSubStrToInt(dataStr,subStr)
+			if countsStr == nil {
+				return 502,"req error"
+			}
+			counts,err := strconv.Atoi(countsStr)
+			if err != nil {
+				return 502,"req error"
+			}
+        }
+    }
+	return 200, "OK"
+}
+
+func (s *apiServer) fetchId(params martini.Params) (int, string) {
+	accountId := params["account_id"]
+	key := ConfigData.key
+	reqUrl := getMatchHistory + "&account_id=" + accountId + "&key=" + key
+	data := httpGet(reqUrl + "&matches_requested=1")
+	//fmt.Printf("%s\n",data);
+	var matchHistory MatchHistory
+	json.Unmarshal(data, &matchHistory)
+	//fmt.Println(matchHistory);
+
+	if s.Players[accountId] == nil {
+		s.Players[accountId] = new(PlayerInfo)
+	}
+	OldMaxMatchId := s.Players[accountId].MaxMatchId
+	if matchHistory.Result.NumResults != 0 {
+		if matchHistory.Result.Matches[0].MatchId <= s.Players[accountId].MaxMatchId {
+			return 200, "NoNewData"
+		}
+		s.Players[accountId].MaxMatchId = matchHistory.Result.Matches[0].MatchId
+	}
+	defer s.Save()
+	for {
+		fmt.Printf("matchHistory.Result.NumResults %d\n", matchHistory.Result.NumResults)
+		//一轮解析开始
+		var curMatchId int
+		for _, match := range matchHistory.Result.Matches {
+			//获取数据
+			curMatchId = match.MatchId
+			if curMatchId == OldMaxMatchId {
+				return 200, "OK"
+			}
+			data = httpGet(getMatchDetails + "&match_id=" + strconv.Itoa(curMatchId) + "&key=" + key)
+			s.Players[accountId].updatePlayerInfo(accountId, data)
+		}
+		s.Players[accountId].MatchCount += matchHistory.Result.NumResults
+		fmt.Printf("MatchCount %d\n", s.Players[accountId].MatchCount)
+		//一轮解析结束
+
+		data = httpGet(reqUrl + "&matches_requested=100" + "&start_at_match_id=" + strconv.Itoa(curMatchId-1))
+		json.Unmarshal(data, &matchHistory)
+		if matchHistory.Result.NumResults == 0 {
+			break
+		}
+		if curMatchId == matchHistory.Result.Matches[0].MatchId {
+			return 200, "OK"
+		}
+	}
+	return 200, "OK"
 }
 
 func (s *apiServer) Save() {
@@ -324,52 +441,4 @@ func (s *apiServer) showOverview() (int, string) {
 	return 200, string(show)
 }
 
-func (s *apiServer) fetchId(params martini.Params) (int, string) {
-	accountId := params["account_id"]
-	key := ConfigData.key
-	reqUrl := getMatchHistory + "&account_id=" + accountId + "&key=" + key
-	data := httpGet(reqUrl + "&matches_requested=1")
-	//fmt.Printf("%s\n",data);
-	var matchHistory MatchHistory
-	json.Unmarshal(data, &matchHistory)
-	//fmt.Println(matchHistory);
 
-	if s.Players[accountId] == nil {
-		s.Players[accountId] = new(PlayerInfo)
-	}
-	OldMaxMatchId := s.Players[accountId].MaxMatchId
-	if matchHistory.Result.NumResults != 0 {
-		if matchHistory.Result.Matches[0].MatchId <= s.Players[accountId].MaxMatchId {
-			return 200, "NoNewData"
-		}
-		s.Players[accountId].MaxMatchId = matchHistory.Result.Matches[0].MatchId
-	}
-	defer s.Save()
-	for {
-		fmt.Printf("matchHistory.Result.NumResults %d\n", matchHistory.Result.NumResults)
-		//一轮解析开始
-		var curMatchId int
-		for _, match := range matchHistory.Result.Matches {
-			//获取数据
-			curMatchId = match.MatchId
-			if curMatchId == OldMaxMatchId {
-				return 200, "OK"
-			}
-			data = httpGet(getMatchDetails + "&match_id=" + strconv.Itoa(curMatchId) + "&key=" + key)
-			s.Players[accountId].updatePlayerInfo(accountId, data)
-		}
-		s.Players[accountId].MatchCount += matchHistory.Result.NumResults
-		fmt.Printf("MatchCount %d\n", s.Players[accountId].MatchCount)
-		//一轮解析结束
-
-		data = httpGet(reqUrl + "&matches_requested=100" + "&start_at_match_id=" + strconv.Itoa(curMatchId-1))
-		json.Unmarshal(data, &matchHistory)
-		if matchHistory.Result.NumResults == 0 {
-			break
-		}
-		if curMatchId == matchHistory.Result.Matches[0].MatchId {
-			return 200, "OK"
-		}
-	}
-	return 200, "OK"
-}

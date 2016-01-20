@@ -2,6 +2,7 @@ package picker
 
 var getMatchDetails = "https://api.steampowered.com/IDOTA2Match_570/GetMatchDetails/v001/?"
 var getMatchHistory = "https://api.steampowered.com/IDOTA2Match_570/GetMatchHistory/V001/?"
+var getMatchHistoryFromDotamax = "http://dotamax.com/player/match/"
 
 type MatchDetails struct {
 	Result struct {

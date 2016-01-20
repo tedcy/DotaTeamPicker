@@ -10,9 +10,15 @@ import (
 
 func httpGet(url string) []byte {
 	fmt.Println("DEBUG-URL" + url)
-	resp, _ := http.Get(url)
+	resp, err := http.Get(url)
+	if err != nil{
+		return nil
+    }
 	defer resp.Body.Close()
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil{
+		return nil
+    }
 	return body
 }
 
