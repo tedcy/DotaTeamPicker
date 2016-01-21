@@ -9,12 +9,12 @@ import (
 )
 
 func httpGet(url string) []byte {
-	for i := 0;i != 3; i++ {
+	for i := 0;i != 20; i++ {
 		fmt.Println("DEBUG-URL:" + url)
 		resp, err := http.Get(url)
-		if err != nil{
+		if err != nil || resp.StatusCode != 200{
 			if i != 0 {
-				fmt.Println("retry get ",i,"error")
+				fmt.Println("retry get ",url," ",i,"error")
             }
 			resp.Body.Close()
 			continue

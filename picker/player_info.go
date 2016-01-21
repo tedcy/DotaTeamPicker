@@ -81,8 +81,10 @@ func (p *PlayerInfo) updatePlayerInfo(accountId string, data []byte) {
 		p.HeroWins[useName]++
 		for _,enemyHeroName := range enemyBeat {
 			//对抗获胜次数+1
-			p.HeroBeatCounts[MergeHeroName(useName, enemyHeroName)]++
+			p.HeroBeatWins[MergeHeroName(useName, enemyHeroName)]++
 		}
 	}
+	//fmt.Printf("MatchCount %d\n", p.MatchCount)
 	p.lock.Unlock()
+	return
 }

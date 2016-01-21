@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"strconv"
+	"sync"
 )
 
 type apiServer struct {
@@ -132,6 +133,7 @@ func (s *apiServer) fetchIdAll(accountId string) {
 	//记录且仅记录一次maxMatchId的控制器
 	var saveMaxMatchId bool
 	lastMatchId := "999999999999"
+	var wg sync.WaitGroup
 	for ;;index++ {
 		data := httpGet(reqUrl + strconv.Itoa(index))
 		if data == nil {
@@ -146,7 +148,7 @@ func (s *apiServer) fetchIdAll(accountId string) {
 			if countsIndex < 0 {
 				break
 			}
-			fmt.Println(curMatchId)
+			//fmt.Println(curMatchId)
 			if saveMaxMatchId == false {
 				s.Players[accountId].MaxMatchId,_ = strconv.Atoi(curMatchId)
 				saveMaxMatchId = true
@@ -161,19 +163,23 @@ func (s *apiServer) fetchIdAll(accountId string) {
 					fmt.Println("OK")
 					return
                 }
+				if id % 8 == 0 {
+					wg.Wait()
+                }
 			}
 
 			go func(matchId string) {
+				wg.Add(1)
 				data := httpGet(getMatchDetails + "&match_id=" + matchId + "&key=" + key)
 				if data == nil {
 					fmt.Println("req error")
 					return
 				}
 				s.Players[accountId].updatePlayerInfo(accountId, data)
+				wg.Done()
 
             }(curMatchId)
 			lastMatchId = curMatchId
-			fmt.Printf("MatchCount %d\n", s.Players[accountId].MatchCount)
 			dataStr = dataStr[countsIndex:]
         }
     }
