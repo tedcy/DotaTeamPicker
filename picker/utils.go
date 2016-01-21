@@ -9,17 +9,24 @@ import (
 )
 
 func httpGet(url string) []byte {
-	fmt.Println("DEBUG-URL" + url)
-	resp, err := http.Get(url)
-	if err != nil{
+	for i := 0;i != 3; i++ {
+		fmt.Println("DEBUG-URL:" + url)
+		resp, err := http.Get(url)
+		if err != nil{
+			if i != 0 {
+				fmt.Println("retry get ",i,"error")
+            }
+			resp.Body.Close()
+			continue
+		}
+		body, err := ioutil.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err == nil{
+			return body
+		}
 		return nil
     }
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil{
-		return nil
-    }
-	return body
+	return nil
 }
 
 func MapSort(p map[string]float32) PairList {

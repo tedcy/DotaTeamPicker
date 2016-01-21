@@ -16,6 +16,7 @@ type apiServer struct {
 	Compile  string
 	Players  map[string]*PlayerInfo
 	overview []PlayerOverview
+	fetchChan chan string
 }
 
 func NewApiServer() http.Handler {
@@ -43,6 +44,7 @@ func NewApiServer() http.Handler {
 	})
 	api := &apiServer{Version: "1.00", Compile: "go"}
 	api.Load()
+	api.StartDaemonRoutines()
 	m.Use(func(req *http.Request, c martini.Context, w http.ResponseWriter) {
 		if req.Method == "GET" && strings.HasPrefix(req.URL.Path,"/teampickwrwithoutjson") {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -56,13 +58,27 @@ func NewApiServer() http.Handler {
 	})
 	r.Get("/overview", api.showOverview)
 	r.Get("/fetch/:account_id", api.fetchId)
-	r.Get("/fetchall/:account_id", api.fetchIdAll)
 	r.Get("/teampick/:herolist", api.teamPick)
 	r.Get("/teampickwr/:herolist", api.teamPickWinRate)
 	r.Get("/teampickwrwithoutjson/:herolist", api.teamPickWinRateWithoutJSON)
 	m.MapTo(r, (*martini.Routes)(nil))
 	m.Action(r.Handle)
 	return m
+}
+
+func (s *apiServer) StartDaemonRoutines(){
+	s.fetchChan = make(chan string,4096)
+	go func() {
+		for {
+			accountId := <-s.fetchChan
+			if len(accountId) == 0 {
+				fmt.Println("fetchChan broken")
+				return
+            }
+			fmt.Println("fetchId",accountId)
+			s.fetchOneId(accountId)
+        }
+    }()
 }
 
 func searchSubStrToInt(dataStr string,subStr string,appendLen int) (string,int){
@@ -103,26 +119,24 @@ func GetMatchCounts(accountId string) int{
 	return counts
 }
 
-func (s *apiServer) fetchIdAll(params martini.Params) (int, string) {
-	accountId := params["account_id"]
+func (s *apiServer) fetchIdAll(accountId string) {
 	key := ConfigData.key
-	reqUrl := getMatchHistoryFromDotamax + accountId + "/?skill=&ladder=&hero=-1&p=" 
-	matchCount := GetMatchCounts(accountId)
+	/*matchCount := GetMatchCounts(accountId)
 	if(matchCount < 0) {
 		return 200,"no find id"
-    }
-	subStr := "sorttable_customkey=\""
-	index := 1
+    }*/
 
-	fmt.Println(matchCount)
-	s.Players[accountId] = new(PlayerInfo)
+	reqUrl := getMatchHistoryFromDotamax + accountId + "/?skill=&ladder=&hero=-1&p="
+	index := 1
+	subStr := "sorttable_customkey=\""
 	//记录且仅记录一次maxMatchId的控制器
 	var saveMaxMatchId bool
 	lastMatchId := "999999999999"
-	for counts := 0;;index++ {
+	for ;;index++ {
 		data := httpGet(reqUrl + strconv.Itoa(index))
 		if data == nil {
-			return 502,"req error"
+			fmt.Println("req error")
+			return
         }
 		dataStr := string(data)
 		var countsIndex int
@@ -132,6 +146,7 @@ func (s *apiServer) fetchIdAll(params martini.Params) (int, string) {
 			if countsIndex < 0 {
 				break
 			}
+			fmt.Println(curMatchId)
 			if saveMaxMatchId == false {
 				s.Players[accountId].MaxMatchId,_ = strconv.Atoi(curMatchId)
 				saveMaxMatchId = true
@@ -143,29 +158,46 @@ func (s *apiServer) fetchIdAll(params martini.Params) (int, string) {
 				lastId, _ := strconv.Atoi(lastMatchId)
 				if id > lastId {
 					s.Save()
-					return 200, "OK"
+					fmt.Println("OK")
+					return
                 }
 			}
 
-			data = httpGet(getMatchDetails + "&match_id=" + curMatchId + "&key=" + key)
-			if data == nil {
-				return 502,"req error"
-			}
-			s.Players[accountId].updatePlayerInfo(accountId, data)
-			s.Players[accountId].MatchCount++
-			counts++
+			go func(matchId string) {
+				data := httpGet(getMatchDetails + "&match_id=" + matchId + "&key=" + key)
+				if data == nil {
+					fmt.Println("req error")
+					return
+				}
+				s.Players[accountId].updatePlayerInfo(accountId, data)
+
+            }(curMatchId)
 			lastMatchId = curMatchId
-			fmt.Printf("MatchCount %d\n", counts)
-			fmt.Println(countsIndex)
+			fmt.Printf("MatchCount %d\n", s.Players[accountId].MatchCount)
 			dataStr = dataStr[countsIndex:]
         }
     }
 	s.Save()
-	return 200, "OK"
+	fmt.Println("OK")
+	return
 }
 
 func (s *apiServer) fetchId(params martini.Params) (int, string) {
 	accountId := params["account_id"]
+
+	s.fetchChan <- accountId
+	return 200, "send fetch request success"
+}
+
+func (s *apiServer) fetchOneId(accountId string) {
+	if s.Players[accountId] == nil {
+		s.Players[accountId] = new(PlayerInfo)
+		//从dotamax抓
+		s.Players[accountId].Init()
+		s.fetchIdAll(accountId)
+		return
+	}
+	//从steam抓
 	key := ConfigData.key
 	reqUrl := getMatchHistory + "&account_id=" + accountId + "&key=" + key
 	data := httpGet(reqUrl + "&matches_requested=1")
@@ -173,14 +205,12 @@ func (s *apiServer) fetchId(params martini.Params) (int, string) {
 	var matchHistory MatchHistory
 	json.Unmarshal(data, &matchHistory)
 	//fmt.Println(matchHistory);
-
-	if s.Players[accountId] == nil {
-		s.Players[accountId] = new(PlayerInfo)
-	}
+	
 	OldMaxMatchId := s.Players[accountId].MaxMatchId
 	if matchHistory.Result.NumResults != 0 {
 		if matchHistory.Result.Matches[0].MatchId <= s.Players[accountId].MaxMatchId {
-			return 200, "NoNewData"
+			fmt.Println("NoNewData")
+			return
 		}
 		s.Players[accountId].MaxMatchId = matchHistory.Result.Matches[0].MatchId
 	}
@@ -193,7 +223,8 @@ func (s *apiServer) fetchId(params martini.Params) (int, string) {
 			//获取数据
 			curMatchId = match.MatchId
 			if curMatchId == OldMaxMatchId {
-				return 200, "OK"
+				fmt.Println("OK")
+				return
 			}
 			data = httpGet(getMatchDetails + "&match_id=" + strconv.Itoa(curMatchId) + "&key=" + key)
 			s.Players[accountId].updatePlayerInfo(accountId, data)
@@ -207,11 +238,14 @@ func (s *apiServer) fetchId(params martini.Params) (int, string) {
 		if matchHistory.Result.NumResults == 0 {
 			break
 		}
+		//重复解析，说明解析完毕
 		if curMatchId == matchHistory.Result.Matches[0].MatchId {
-			return 200, "OK"
+			fmt.Println("OK")
+			return
 		}
 	}
-	return 200, "OK"
+	fmt.Println("OK")
+	return
 }
 
 func (s *apiServer) Save() {
