@@ -499,9 +499,10 @@ func (s *apiServer) teamPickWinRateWithoutJSON(params martini.Params) (int, stri
 func (s *apiServer) showOverview() (int, string) {
 	var show string
 	for _, overview := range s.overview {
-		show += "玩家ID:"
-		show += overview.AccountId
-		show += "\n"
+		show += ("玩家ID:" + overview.AccountId + "\n")
+		if nickName, ok := ConfigData.nickNames[overview.AccountId];ok {
+			show += ("昵称:" + nickName + "\n")
+        }
 		heroBeatWinRate := make(map[string]map[string]float32)
 		heroWinRate := make(map[string]float32)
 		for name, counts := range overview.Players.HeroCounts {
@@ -526,6 +527,7 @@ func (s *apiServer) showOverview() (int, string) {
 				show += p.Key
 			}
 		}
+		show += "\n\n\n\n\n"
 	}
 	return 200, string(show)
 }
