@@ -6,6 +6,7 @@ import (
 	"github.com/martini-contrib/render"
 	"strings"
 	"fmt"
+	"log"
 	"encoding/json"
 	"io/ioutil"
 	"strconv"
@@ -143,7 +144,7 @@ func (s *apiServer) fetchIdAll(accountId string) {
 		dataStr := string(data)
 		var countsIndex int
 		var curMatchId string
-		for {
+		for i:=0;;i++{
 			curMatchId,countsIndex = searchSubStrToInt(dataStr,subStr,0)
 			if countsIndex < 0 {
 				break
@@ -159,30 +160,37 @@ func (s *apiServer) fetchIdAll(accountId string) {
 				id, _ := strconv.Atoi(curMatchId)
 				lastId, _ := strconv.Atoi(lastMatchId)
 				if id > lastId {
+					wg.Wait()
 					s.Save()
 					fmt.Println("OK")
 					return
                 }
-				if id % 8 == 0 {
+				//每几个协程就等一下，防止抓太快被forbid
+				if i % 8 == 0 {
 					wg.Wait()
                 }
 			}
 
 			go func(matchId string) {
 				wg.Add(1)
+				defer wg.Done()
 				data := httpGet(getMatchDetails + "&match_id=" + matchId + "&key=" + key)
 				if data == nil {
 					fmt.Println("req error")
 					return
 				}
-				s.Players[accountId].updatePlayerInfo(accountId, data)
-				wg.Done()
+				if s.Players[accountId].updatePlayerInfo(accountId, data) == 0 {
+					log.Println("MATCHID",matchId)
+                }else {
+					log.Println("ERRID",matchId)
+                }
 
             }(curMatchId)
 			lastMatchId = curMatchId
 			dataStr = dataStr[countsIndex:]
         }
     }
+	wg.Wait()
 	s.Save()
 	fmt.Println("OK")
 	return
@@ -233,7 +241,12 @@ func (s *apiServer) fetchOneId(accountId string) {
 				return
 			}
 			data = httpGet(getMatchDetails + "&match_id=" + strconv.Itoa(curMatchId) + "&key=" + key)
-			s.Players[accountId].updatePlayerInfo(accountId, data)
+
+			if s.Players[accountId].updatePlayerInfo(accountId, data) == 0 {
+				log.Println("MATCHID",matchId)
+            }else {
+				log.Println("ERRID",matchId)
+            }
 		}
 		s.Players[accountId].MatchCount += matchHistory.Result.NumResults
 		fmt.Printf("MatchCount %d\n", s.Players[accountId].MatchCount)

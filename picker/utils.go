@@ -3,18 +3,23 @@ package picker
 import (
 	"net/http"
 	"io/ioutil"
-	"fmt"
 	"sort"
 	"strings"
 )
 
 func httpGet(url string) []byte {
 	for i := 0;i != 20; i++ {
-		fmt.Println("DEBUG-URL:" + url)
+		//log.Println("DEBUG-URL:" + url)
 		resp, err := http.Get(url)
-		if err != nil || resp.StatusCode != 200{
+		if err != nil {
 			if i != 0 {
-				fmt.Println("retry get ",url," ",i,"error")
+				//log.Println("retry get ",url," ",i,"error")
+            }
+			continue
+        }
+		if resp.StatusCode != 200{
+			if i != 0 {
+				//log.Println("retry get ",url," ",i,"error")
             }
 			resp.Body.Close()
 			continue

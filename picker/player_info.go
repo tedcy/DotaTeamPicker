@@ -23,21 +23,23 @@ func (p *PlayerInfo) Init() {
 	p.HeroBeatCounts = make(map[string]int)
 }
 
-func (p *PlayerInfo) updatePlayerInfo(accountId string, data []byte) {
+func (p *PlayerInfo) updatePlayerInfo(accountId string, data []byte) int{
 	var matchDetails MatchDetails
 	json.Unmarshal(data, &matchDetails)
 	//判断是否全部玩家选择英雄
 	for _, player := range matchDetails.Result.Players {
 		if player.HeroId == 0 {
-			return
+			return -1
         }
     }
 	var useName string
 	var useWin bool
 	var enemyBeat []string
+	var hasUse bool
 	for _, player := range matchDetails.Result.Players {
 		//数据分析的玩家
 		if strconv.Itoa(player.AccountId) == accountId {
+			hasUse = true
 			HeroName := HeroIdMap[player.HeroId]
 			//fmt.Println(strconv.Itoa(player.HeroId) + " " + HeroName)
 			useName = HeroName
@@ -68,6 +70,9 @@ func (p *PlayerInfo) updatePlayerInfo(accountId string, data []byte) {
 			break;
 		}
 	}
+	if !hasUse {
+		return -1
+    }
 	p.lock.Lock()
 	p.MatchCount++
 	//英雄出场数+1
@@ -86,5 +91,5 @@ func (p *PlayerInfo) updatePlayerInfo(accountId string, data []byte) {
 	}
 	//fmt.Printf("MatchCount %d\n", p.MatchCount)
 	p.lock.Unlock()
-	return
+	return 0
 }
