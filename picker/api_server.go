@@ -243,9 +243,9 @@ func (s *apiServer) fetchOneId(accountId string) {
 			data = httpGet(getMatchDetails + "&match_id=" + strconv.Itoa(curMatchId) + "&key=" + key)
 
 			if s.Players[accountId].updatePlayerInfo(accountId, data) == 0 {
-				log.Println("MATCHID",matchId)
+				log.Println("MATCHID",curMatchId)
             }else {
-				log.Println("ERRID",matchId)
+				log.Println("ERRID",curMatchId)
             }
 		}
 		s.Players[accountId].MatchCount += matchHistory.Result.NumResults
