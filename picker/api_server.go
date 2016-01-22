@@ -167,7 +167,7 @@ func (s *apiServer) fetchIdAll(accountId string) {
 					return
                 }
 				//每几个协程就等一下，防止抓太快被forbid
-				if i % 16 == 0 {
+				if i % 4 == 0 {
 					wg.Wait()
 					time.Sleep(time.Second)
                 }

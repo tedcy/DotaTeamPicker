@@ -13,13 +13,13 @@ func httpGet(url string) []byte {
 		resp, err := http.Get(url)
 		if err != nil {
 			if i != 0 {
-				//log.Println("retry get ",url," ",i,"error")
+				log.Println("retry get ",url," ",i)
             }
 			continue
         }
 		if resp.StatusCode != 200{
 			if i != 0 {
-				//log.Println("retry get ",url," ",i,"error")
+				log.Println("retry get ",url," ",i)
             }
 			resp.Body.Close()
 			continue
