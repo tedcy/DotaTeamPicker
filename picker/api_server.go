@@ -11,6 +11,7 @@ import (
 	"io/ioutil"
 	"strconv"
 	"sync"
+	"time"
 )
 
 type apiServer struct {
@@ -166,8 +167,9 @@ func (s *apiServer) fetchIdAll(accountId string) {
 					return
                 }
 				//每几个协程就等一下，防止抓太快被forbid
-				if i % 8 == 0 {
+				if i % 16 == 0 {
 					wg.Wait()
+					time.Sleep(time.Second)
                 }
 			}
 
