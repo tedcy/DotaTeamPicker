@@ -479,7 +479,7 @@ func (s *apiServer) teamPickWinRateWithoutJSON(params martini.Params) (int, stri
 		if nickName, ok := ConfigData.nickNames[overview.AccountId];ok {
 			show += ("<b>昵称:" + nickName + "</b><br>")
         }
-		show += ("<b>全部比赛:"strconv.Itoa(overview.Players.MatchCount) + "场</b><br>")
+		show += ("<b>全部比赛:" + strconv.Itoa(overview.Players.MatchCount) + "场</b><br>")
 		choiceHeroList := MapSort(choiceHeroRateMap)
 		var count int
 		for _, choiceHero := range choiceHeroList {
