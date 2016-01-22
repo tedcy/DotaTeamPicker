@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"sort"
 	"strings"
+	"log"
 )
 
 func httpGet(url string) []byte {
