@@ -19,6 +19,7 @@ type apiServer struct {
 	Compile  string
 	Players  map[string]*PlayerInfo
 	overview []PlayerOverview
+	overviewLock sync.Mutex
 	fetchChan chan string
 }
 
@@ -52,6 +53,8 @@ func NewApiServer() http.Handler {
 		if req.Method == "GET" && strings.HasPrefix(req.URL.Path,"/teampickwrwithoutjson") {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		}else {
+			w.Header().Set("Access-Control-Allow-Origin", "*")//允许访问所有域
+			w.Header().Add("Access-Control-Allow-Headers","Content-Type")//header的类型
 			w.Header().Set("Content-Type", "application/json; charset=utf-8")
         }
 	})
@@ -61,6 +64,7 @@ func NewApiServer() http.Handler {
 	})
 	r.Get("/overview", api.showOverview)
 	r.Get("/fetch/:account_id", api.fetchId)
+	r.Get("/fetchupdate",api.fetchUpdate)
 	r.Get("/teampick/:herolist", api.teamPick)
 	r.Get("/teampickwr/:herolist", api.teamPickWinRate)
 	r.Get("/teampickwrwithoutjson/:herolist", api.teamPickWinRateWithoutJSON)
@@ -205,6 +209,21 @@ func (s *apiServer) fetchId(params martini.Params) (int, string) {
 	return 200, "send fetch request success"
 }
 
+func (s *apiServer) fetchUpdate(params martini.Params) (int, string) {
+	//加锁获取一个overview镜像
+	overviewTemp := []PlayerOverview{}
+	s.overviewLock.Lock()
+	for _, overview := range s.overview{
+		overviewTemp = append(overviewTemp,overview)
+    }
+	s.overviewLock.Unlock()
+
+	for _, overview := range overviewTemp {
+		s.fetchChan <- overview.AccountId
+    }
+	return 200, "send update request success"
+}
+
 func (s *apiServer) fetchOneId(accountId string) {
 	if s.Players[accountId] == nil {
 		s.Players[accountId] = new(PlayerInfo)
@@ -270,6 +289,8 @@ func (s *apiServer) fetchOneId(accountId string) {
 }
 
 func (s *apiServer) Save() {
+	//save对overview进行改写，需要加锁
+	s.overviewLock.Lock()
 	if len(s.overview) != 0 {
 		s.overview = make([]PlayerOverview, 0)
 	}
@@ -279,6 +300,7 @@ func (s *apiServer) Save() {
 		tmp.Players = *playerInfo
 		s.overview = append(s.overview, tmp)
 	}
+	s.overviewLock.Unlock()
 	data, _ := json.MarshalIndent(s.overview, "", "    ")
 	//os.Remove("overview.data")
 	ioutil.WriteFile("overview.data", data, 0666)
@@ -288,6 +310,7 @@ func (s *apiServer) Save() {
 }
 
 func (s *apiServer) Load() {
+	//load启动时写入overview因此不需要加锁
 	s.Players = make(map[string]*PlayerInfo)
 
 	data, err := ioutil.ReadFile("overview.data")
@@ -310,7 +333,15 @@ func (s *apiServer) teamPick(params martini.Params) (int, string) {
 		return 200, "NoHero"
 	}
 
-	for _, overview := range s.overview {
+	//加锁获取一个overview镜像
+	overviewTemp := []PlayerOverview{}
+	s.overviewLock.Lock()
+	for _, overview := range s.overview{
+		overviewTemp = append(overviewTemp,overview)
+    }
+	s.overviewLock.Unlock()
+	
+	for _, overview := range overviewTemp {
 		heroBeatWinRate := make(map[string]map[string]float32)
 		heroWinRate := make(map[string]float32)
 		for name, counts := range overview.Players.HeroCounts {
@@ -360,15 +391,30 @@ func (s *apiServer) teamPick(params martini.Params) (int, string) {
 	return 200, show
 }
 
+type choiceForShow struct {
+	AccountId string
+	NickName string
+	ChoiceHeroRateMap map[string]float32
+}
+
 func (s *apiServer) teamPickWinRate(params martini.Params) (int, string) {
 	heroListStr := params["herolist"]
-	var show string
+	//var show string
 	heroList := strings.Split(heroListStr, "-")
 	if len(heroList) == 0 {
 		return 200, "NoHero"
 	}
+	var choiceHeroRateMapsForShow []choiceForShow
 
-	for _, overview := range s.overview {
+	//加锁获取一个overview镜像
+	overviewTemp := []PlayerOverview{}
+	s.overviewLock.Lock()
+	for _, overview := range s.overview{
+		overviewTemp = append(overviewTemp,overview)
+    }
+	s.overviewLock.Unlock()
+
+	for _, overview := range overviewTemp {
 		heroBeatWinRate := make(map[string]map[string]float32)
 		heroWinRate := make(map[string]float32)
 		for name, counts := range overview.Players.HeroCounts {
@@ -414,11 +460,20 @@ func (s *apiServer) teamPickWinRate(params martini.Params) (int, string) {
 			}
 			choiceHeroRateMap[choiceHeroName] /= float32(len(heroList))
 		}
-		data, _ := json.Marshal(choiceHeroRateMap)
-		show += ("用户ID" + overview.AccountId + string(data) + "\n")
-	}
 
-	return 200, show
+		//输出格式准备
+		choiceHeroRateMapForShow := &choiceForShow{AccountId: overview.AccountId, ChoiceHeroRateMap:choiceHeroRateMap}
+		if nickName, ok := ConfigData.nickNames[overview.AccountId];ok {
+			choiceHeroRateMapForShow.NickName = nickName
+        }else {
+			choiceHeroRateMapForShow.NickName = "未定义的昵称"
+        }
+		choiceHeroRateMapsForShow = append(choiceHeroRateMapsForShow,*choiceHeroRateMapForShow)
+		//show += ("用户ID" + overview.AccountId + string(data) + "\n")
+	}
+	data, _ := json.Marshal(choiceHeroRateMapsForShow)
+
+	return 200, string(data)
 }
 
 func (s *apiServer) teamPickWinRateWithoutJSON(params martini.Params) (int, string) {
@@ -429,7 +484,15 @@ func (s *apiServer) teamPickWinRateWithoutJSON(params martini.Params) (int, stri
 		return 200, "NoHero"
 	}
 
-	for _, overview := range s.overview {
+	//加锁获取一个overview镜像
+	overviewTemp := []PlayerOverview{}
+	s.overviewLock.Lock()
+	for _, overview := range s.overview{
+		overviewTemp = append(overviewTemp,overview)
+    }
+	s.overviewLock.Unlock()
+
+	for _, overview := range overviewTemp {
 		heroBeatWinRate := make(map[string]map[string]float32)
 		heroWinRate := make(map[string]float32)
 		for name, counts := range overview.Players.HeroCounts {
@@ -498,7 +561,16 @@ func (s *apiServer) teamPickWinRateWithoutJSON(params martini.Params) (int, stri
 
 func (s *apiServer) showOverview() (int, string) {
 	var show string
-	for _, overview := range s.overview {
+
+	//加锁获取一个overview镜像
+	overviewTemp := []PlayerOverview{}
+	s.overviewLock.Lock()
+	for _, overview := range s.overview{
+		overviewTemp = append(overviewTemp,overview)
+    }
+	s.overviewLock.Unlock()
+	
+	for _, overview := range overviewTemp {
 		show += ("玩家ID:" + overview.AccountId + "\n")
 		if nickName, ok := ConfigData.nickNames[overview.AccountId];ok {
 			show += ("昵称:" + nickName + "\n")
