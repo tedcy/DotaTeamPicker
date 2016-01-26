@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"sync"
 	"time"
+	"github.com/martini-contrib/gzip"
 )
 
 type apiServer struct {
@@ -49,6 +50,7 @@ func NewApiServer() http.Handler {
 	api := &apiServer{Version: "1.00", Compile: "go"}
 	api.Load()
 	api.StartDaemonRoutines()
+	m.Use(gzip.All())
 	m.Use(func(req *http.Request, c martini.Context, w http.ResponseWriter) {
 		if req.Method == "GET" && strings.HasPrefix(req.URL.Path,"/teampickwrwithoutjson") {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
