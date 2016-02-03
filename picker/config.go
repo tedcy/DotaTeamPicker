@@ -3,13 +3,17 @@ package picker
 import (
 	"fmt"
 	"strings"
+	"strconv"
 	"io/ioutil"
 )
 
 var ConfigData = &struct {
 	key string
 	Addr string
+	testFetchMatches bool
+	mysqlAddr string
 	nickNames map[string]string
+	limit6_86 int
 }{}
 
 func LoadConfig() {
@@ -26,6 +30,17 @@ func LoadConfig() {
         }
 		if value[0] == "addr" {
 			ConfigData.Addr = value[1]
+        }
+		if value[0] == "testFetchMatches" {
+			if value[1] == "open" {
+				ConfigData.testFetchMatches = true
+            }
+        }
+		if value[0] == "mysqlAddr" {
+			ConfigData.mysqlAddr = value[1]
+        }
+		if value[0] == "limit6.86" {
+			ConfigData.limit6_86, _ = strconv.Atoi(value[1])
         }
 		if value[0] == "nickNames" {
 			nameStrs := strings.Split(value[1],";")

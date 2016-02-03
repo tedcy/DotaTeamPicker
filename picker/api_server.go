@@ -88,6 +88,10 @@ func (s *apiServer) StartDaemonRoutines(){
 			s.fetchOneId(accountId)
         }
     }()
+	if ConfigData.testFetchMatches {
+		go func() {
+        }
+    }
 }
 
 func searchSubStrToInt(dataStr string,subStr string,appendLen int) (string,int){
