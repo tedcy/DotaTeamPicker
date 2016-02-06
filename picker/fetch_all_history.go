@@ -52,9 +52,9 @@ var getOneMatch = "https://api.steampowered.com/IDOTA2Match_570/GetMatchHistory/
 func FetchMatchsBySeq(seq int64) MatchInfo {
 	var reqUrl string
 	if seq == 0 {
-		reqUrl = getOneMatch + "&key=" + ConfigData.key
+		reqUrl = getOneMatch + "key=" + ConfigData.key
     }else {
-		reqUrl = getMatchHistoryWithSeq + "&key=" + ConfigData.key + "&start_at_match_seq_num=" + strconv.FormatInt(seq,10)
+		reqUrl = getMatchHistoryWithSeq + "key=" + ConfigData.key + "&start_at_match_seq_num=" + strconv.FormatInt(seq,10)
     }
 	log.Println(reqUrl)
 	data := httpGet(reqUrl)
