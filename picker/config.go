@@ -13,7 +13,7 @@ var ConfigData = &struct {
 	testFetchMatches bool
 	mysqlAddr string
 	nickNames map[string]string
-	limit6_86 int
+	limit6_86 int64
 }{}
 
 func LoadConfig() {
@@ -40,7 +40,7 @@ func LoadConfig() {
 			ConfigData.mysqlAddr = value[1]
         }
 		if value[0] == "limit6.86" {
-			ConfigData.limit6_86, _ = strconv.Atoi(value[1])
+			ConfigData.limit6_86, _ = strconv.ParseInt(value[1],10,64)
         }
 		if value[0] == "nickNames" {
 			nameStrs := strings.Split(value[1],";")

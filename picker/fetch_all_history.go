@@ -18,9 +18,9 @@ import (
 );*/
 
 type AllHistory struct {
-	fetchSeqStart int
-	fetchSeqEnd   int
-	zeroSeq       int
+	fetchSeqStart int64
+	fetchSeqEnd   int64
+	zeroSeq       int64
 	db            *sql.DB
 }
 
@@ -32,12 +32,12 @@ type AllHistory struct {
 
 type MatchInfoMatch struct {
 	Players [10]struct {
-		AccountId int `json:"account_id"`
-		HeroId    int `json:"hero_id"`
+		AccountId int64 `json:"account_id"`
+		HeroId    int`json:"hero_id"`
 	} `json:"players"`
-	MatchId     int `json:"match_id"`
-	MatchSeqNum int `json:"match_seq_num"`
-	StartTime   int `json:"start_time"`
+	MatchId     int64 `json:"match_id"`
+	MatchSeqNum int64 `json:"match_seq_num"`
+	StartTime   int64 `json:"start_time"`
 }
 
 type MatchInfo struct {
@@ -49,12 +49,12 @@ type MatchInfo struct {
 var getMatchHistoryWithSeq = "https://api.steampowered.com/IDOTA2Match_570/GetMatchHistoryBySequenceNum/V001/?"
 var getOneMatch = "https://api.steampowered.com/IDOTA2Match_570/GetMatchHistory/V001/?"
 
-func FetchMatchsBySeq(seq int) MatchInfo {
+func FetchMatchsBySeq(seq int64) MatchInfo {
 	var reqUrl string
 	if seq == 0 {
 		reqUrl = getOneMatch + "&key=" + ConfigData.key
     }else {
-		reqUrl = getMatchHistoryWithSeq + "&key=" + ConfigData.key + "&start_at_match_seq_num=" + strconv.Itoa(seq)
+		reqUrl = getMatchHistoryWithSeq + "&key=" + ConfigData.key + "&start_at_match_seq_num=" + strconv.FormatInt(seq,64)
     }
 	log.Println(reqUrl)
 	data := httpGet(reqUrl)
@@ -195,9 +195,9 @@ func (h *AllHistory) SaveMatches(matches []MatchInfoMatch) {
 				break
 			}
 			if accountIds == "" {
-				accountIds = strconv.Itoa(p.AccountId)
+				accountIds = strconv.FormatInt(p.AccountId,64)
             }
-			accountIds += (";" + strconv.Itoa(p.AccountId))
+			accountIds += (";" + strconv.FormatInt(p.AccountId,64))
 		}
 		if !valid {
 			continue
