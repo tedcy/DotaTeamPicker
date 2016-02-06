@@ -89,7 +89,7 @@ func (h *AllHistory) FetchProcess() {
 		//历史记录未抓取完整
 		if h.zeroSeq == 0 {
 			matchInfo := FetchMatchsBySeq(h.fetchSeqEnd)
-			if matchInfo = nil {
+			if matchInfo.Result.Matches = nil {
 				time.Sleep(time.Second)
 				continue
             }
@@ -107,7 +107,7 @@ func (h *AllHistory) FetchProcess() {
 		}
 		//抓取最新记录
 		matchInfo := FetchMatchsBySeq(h.fetchSeqEnd)
-		if matchInfo = nil {
+		if matchInfo.Result.Matches = nil {
 			time.Sleep(time.Second)
 			continue
         }
