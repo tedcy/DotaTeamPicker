@@ -89,6 +89,10 @@ func (h *AllHistory) FetchProcess() {
 		//历史记录未抓取完整
 		if h.zeroSeq == 0 {
 			matchInfo := FetchMatchsBySeq(h.fetchSeqEnd)
+			if matchInfo = nil {
+				time.Sleep(time.Second)
+				continue
+            }
 			//检查到686的时间戳
 			//如果达到时间戳，那么记录下该matchId
 			matches := h.checkMatchReachZeroLine(matchInfo)
@@ -103,6 +107,10 @@ func (h *AllHistory) FetchProcess() {
 		}
 		//抓取最新记录
 		matchInfo := FetchMatchsBySeq(h.fetchSeqEnd)
+		if matchInfo = nil {
+			time.Sleep(time.Second)
+			continue
+        }
 		//检查是否到zeroSeq
 		//如果达到，那么zeroSeq = fetchSeqEnd = fetchSeqStart
 		matches := h.checkMatchReachZeroLine(matchInfo)
