@@ -21,6 +21,7 @@ type apiServer struct {
 	Players  map[string]*PlayerInfo
 	overview []PlayerOverview
 	overviewLock sync.Mutex
+	history *AllHistory
 	fetchChan chan string
 }
 
@@ -89,8 +90,12 @@ func (s *apiServer) StartDaemonRoutines(){
         }
     }()
 	if ConfigData.testFetchMatches {
+		s.history = &AllHistory{}
+		s.history.InitDb()
+		s.history.LoadDb()
 		go func() {
-        }
+			s.history.FetchProcess()
+        }()
     }
 }
 

@@ -17,6 +17,7 @@ import (
 //delete from MatchWithPlayers where matchId = 101;
 func main(){
 	db, err := sql.Open("mysql","root:password@tcp(127.0.0.1:3306)/DOTAMATCH")
+	fmt.Printf("%T\n",db)
 
 	if err != nil {
 		fmt.Printf("Open database error: %s\n", err)
@@ -43,7 +44,7 @@ func main(){
 		fmt.Printf("%s\n", err)
 		return
     }
-	defer stmtIns.Close()
+	defer stmtOut.Close()
 
 	_ ,err = stmtIns.Exec(101,10086)
 
