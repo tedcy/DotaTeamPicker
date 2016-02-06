@@ -54,7 +54,7 @@ func FetchMatchsBySeq(seq int64) MatchInfo {
 	if seq == 0 {
 		reqUrl = getOneMatch + "&key=" + ConfigData.key
     }else {
-		reqUrl = getMatchHistoryWithSeq + "&key=" + ConfigData.key + "&start_at_match_seq_num=" + strconv.FormatInt(seq,64)
+		reqUrl = getMatchHistoryWithSeq + "&key=" + ConfigData.key + "&start_at_match_seq_num=" + strconv.FormatInt(seq,10)
     }
 	log.Println(reqUrl)
 	data := httpGet(reqUrl)
@@ -195,9 +195,9 @@ func (h *AllHistory) SaveMatches(matches []MatchInfoMatch) {
 				break
 			}
 			if accountIds == "" {
-				accountIds = strconv.FormatInt(p.AccountId,64)
+				accountIds = strconv.FormatInt(p.AccountId,10)
             }
-			accountIds += (";" + strconv.FormatInt(p.AccountId,64))
+			accountIds += (";" + strconv.FormatInt(p.AccountId,10))
 		}
 		if !valid {
 			continue
