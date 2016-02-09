@@ -16,6 +16,9 @@ import (
 	`nouse` int(11) NOT NULL,
 	PRIMARY KEY (`nouse`)
 );*/
+/*
+INSERT INTO MatchHistory VALUES( 0, 0, 0, 1)
+*/
 
 type AllHistory struct {
 	fetchSeqStart int64
@@ -38,6 +41,7 @@ type MatchInfoMatch struct {
 	MatchId     int64 `json:"match_id"`
 	MatchSeqNum int64 `json:"match_seq_num"`
 	StartTime   int64 `json:"start_time"`
+	HumanPlayers int `json:"human_players"`
 }
 
 type MatchInfo struct {
@@ -64,11 +68,11 @@ func FetchMatchsBySeq(seq int64) MatchInfo {
 } 
 
 /*
-**************************************** fetchSeqStart
+**************************************** fetchSeqEnd
 
 recorded
 
-**************************************** fetchSeqEnd
+**************************************** fetchSeqStart
 
 no record
 
@@ -78,50 +82,42 @@ no record
 func (h *AllHistory) FetchProcess() {
 	//历史记录已经从sql里加载完毕
 	for {
+		//第一次运行
 		if h.fetchSeqEnd == 0 {
-			matchInfo := FetchMatchsBySeq(0)
-			h.fetchSeqStart = matchInfo.Result.Matches[0].MatchSeqNum
-			h.fetchSeqEnd = matchInfo.Result.Matches[0].MatchSeqNum
+			h.fetchSeqStart = 1700000000
+			h.fetchSeqEnd = 1700000000
 			log.Println("start",h.fetchSeqStart,"end",h.fetchSeqEnd)
 			time.Sleep(time.Second)
 			continue
 		}
-		//历史记录未抓取完整
+		//还没达到686的时间戳
 		if h.zeroSeq == 0 {
 			matchInfo := FetchMatchsBySeq(h.fetchSeqEnd)
 			if matchInfo.Result.Matches == nil {
 				time.Sleep(time.Second * 20)
 				continue
             }
-			//检查到686的时间戳
 			//如果达到时间戳，那么记录下该matchId
-			matches := h.checkMatchReachZeroLine(matchInfo)
-			h.fetchSeqEnd = matchInfo.Result.Matches[len(matchInfo.Result.Matches) - 1].MatchSeqNum
-			if matches == nil {
+			if h.checkMatchReachZeroLine(matchInfo) {
+				h.SaveHistory()
 				continue
             }
-			h.SaveMatches(matches)
+			h.fetchSeqEnd = matchInfo.Result.Matches[len(matchInfo.Result.Matches) - 1].MatchSeqNum + 1
 			log.Println("start",h.fetchSeqStart,"end",h.fetchSeqEnd)
 			h.SaveHistory()
+			time.Sleep(time.Second * 2)
 			continue
 		}
-		//抓取最新记录
 		matchInfo := FetchMatchsBySeq(h.fetchSeqEnd)
 		if matchInfo.Result.Matches == nil {
 			time.Sleep(time.Second * 20)
 			continue
         }
-		//检查是否到zeroSeq
-		//如果达到，那么zeroSeq = fetchSeqEnd = fetchSeqStart
-		matches := h.checkMatchReachZeroLine(matchInfo)
-		h.fetchSeqEnd = matchInfo.Result.Matches[len(matchInfo.Result.Matches) - 1].MatchSeqNum
-		if matches == nil {
-			continue
-        }
-		h.SaveMatches(matches)
+		//需要+1，否则会重复拉取一次
+		h.fetchSeqEnd = matchInfo.Result.Matches[len(matchInfo.Result.Matches) - 1].MatchSeqNum + 1
+		h.SaveMatches(matchInfo.Result.Matches)
 		log.Println("start",h.fetchSeqStart,"end",h.fetchSeqEnd)
 		h.SaveHistory()
-		continue
 	}
 }
 
@@ -178,7 +174,7 @@ func (h *AllHistory) LoadDb() {
 }
 
 func (h *AllHistory) SaveHistory() {
-	stmtSaveHistory, err := h.db.Prepare("INSERT INTO MatchHistory VALUES( ?, ?, ?, ?)")
+	stmtSaveHistory, err := h.db.Prepare("UPDATE MatchHistory SET fetchSeqStart = ?,fetchSeqEnd = ?,zeroSeq = ? WHERE nouse = 1")
 
 	if err != nil {
 		log.Printf("%s\n", err)
@@ -186,7 +182,7 @@ func (h *AllHistory) SaveHistory() {
 	}
 	defer stmtSaveHistory.Close()
 
-	_, err = stmtSaveHistory.Exec(h.fetchSeqStart, h.fetchSeqEnd, h.zeroSeq, 1)
+	_, err = stmtSaveHistory.Exec(h.fetchSeqStart, h.fetchSeqEnd, h.zeroSeq)
 }
 
 func (h *AllHistory) SaveMatches(matches []MatchInfoMatch) {
@@ -203,16 +199,20 @@ func (h *AllHistory) SaveMatches(matches []MatchInfoMatch) {
 	for _, m := range matches {
 		var accountIds string
 		valid := true
-		for _, p := range m.Players {
-			if p.AccountId == 4294967295 || p.HeroId == 0 {
-				valid = false
-				break
+		if m.HumanPlayers < 10 {
+			valid = false
+        } else {
+			for _, p := range m.Players {
+				if p.HeroId == 0 {
+					valid = false
+					break
+				}
+				if accountIds == "" {
+					accountIds = strconv.FormatInt(p.AccountId,10)
+				}
+				accountIds += (";" + strconv.FormatInt(p.AccountId,10))
 			}
-			if accountIds == "" {
-				accountIds = strconv.FormatInt(p.AccountId,10)
-            }
-			accountIds += (";" + strconv.FormatInt(p.AccountId,10))
-		}
+        }
 		if !valid {
 			continue
         }
@@ -228,27 +228,17 @@ func (h *AllHistory) SaveMatches(matches []MatchInfoMatch) {
 	log.Println("parse: ",len(matches),"save: ",i)
 }
 
-func (h *AllHistory) checkMatchReachZeroLine(matchInfo MatchInfo) []MatchInfoMatch {
-	matches := make([]MatchInfoMatch,len(matchInfo.Result.Matches))
-	if h.zeroSeq == 0 {
-		for _, m := range matchInfo.Result.Matches {
-			//log.Println(m)
-			if m.StartTime <= ConfigData.limit6_86 {
-				h.zeroSeq = m.MatchSeqNum
-				break
-			}
-			matches = append(matches, m)
-		}
-		return matches
-	}
+func (h *AllHistory) checkMatchReachZeroLine(matchInfo MatchInfo) bool{
+	if matchInfo.Result.Matches[len(matchInfo.Result.Matches) - 1].StartTime < ConfigData.limit6_86 {
+		return false
+    }
 	for _, m := range matchInfo.Result.Matches {
 		//log.Println(m)
-		if m.MatchSeqNum <= h.zeroSeq {
-			h.fetchSeqEnd = h.fetchSeqStart
-			h.zeroSeq = h.fetchSeqStart
-			break
+		if m.StartTime >= ConfigData.limit6_86 {
+			h.zeroSeq = m.MatchSeqNum
+			h.fetchSeqEnd = m.MatchSeqNum
+			return true
 		}
-		matches = append(matches, m)
 	}
-	return matches
+	return false
 }
