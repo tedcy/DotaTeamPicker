@@ -1,28 +1,28 @@
 package picker
 
 import (
-	"net/http"
-	"github.com/go-martini/martini"
-	"github.com/martini-contrib/render"
-	"strings"
-	"fmt"
-	"log"
 	"encoding/json"
-	"io/ioutil"
-	"strconv"
-	"sync"
-	"time"
+	"fmt"
+	"github.com/go-martini/martini"
 	"github.com/martini-contrib/gzip"
+	"github.com/martini-contrib/render"
+	"log"
+	"net/http"
+	"strconv"
+	"strings"
+	"sync"
+	"database/sql"
+	_ "github.com/go-sql-driver/mysql"
 )
 
 type apiServer struct {
-	Version  string
-	Compile  string
-	Players  map[string]*PlayerInfo
-	overview []PlayerOverview
+	Version      string
+	Compile      string
+	Players      map[string]*PlayerInfo
 	overviewLock sync.Mutex
-	history *AllHistory
-	fetchChan chan string
+	history      *AllHistory
+	fetchChan    chan string
+	db            *sql.DB
 }
 
 func NewApiServer() http.Handler {
@@ -49,17 +49,18 @@ func NewApiServer() http.Handler {
 		c.Next()
 	})
 	api := &apiServer{Version: "1.00", Compile: "go"}
+	api.InitDb()
 	api.Load()
 	api.StartDaemonRoutines()
 	m.Use(gzip.All())
 	m.Use(func(req *http.Request, c martini.Context, w http.ResponseWriter) {
-		if req.Method == "GET" && strings.HasPrefix(req.URL.Path,"/teampickwrwithoutjson") {
+		if req.Method == "GET" && strings.HasPrefix(req.URL.Path, "/teampickwrwithoutjson") {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		}else {
-			w.Header().Set("Access-Control-Allow-Origin", "*")//允许访问所有域
-			w.Header().Add("Access-Control-Allow-Headers","Content-Type")//header的类型
+		} else {
+			w.Header().Set("Access-Control-Allow-Origin", "*")             //允许访问所有域
+			w.Header().Add("Access-Control-Allow-Headers", "Content-Type") //header的类型
 			w.Header().Set("Content-Type", "application/json; charset=utf-8")
-        }
+		}
 	})
 	r := martini.NewRouter()
 	r.Get("/", func(r render.Render) {
@@ -67,7 +68,6 @@ func NewApiServer() http.Handler {
 	})
 	r.Get("/overview", api.showOverview)
 	r.Get("/fetch/:account_id", api.fetchId)
-	r.Get("/fetchupdate",api.fetchUpdate)
 	r.Get("/teampick/:herolist", api.teamPick)
 	r.Get("/teampickwr/:herolist", api.teamPickWinRate)
 	r.Get("/teampickwrwithoutjson/:herolist", api.teamPickWinRateWithoutJSON)
@@ -76,141 +76,43 @@ func NewApiServer() http.Handler {
 	return m
 }
 
-func (s *apiServer) StartDaemonRoutines(){
-	s.fetchChan = make(chan string,4096)
+func (s *apiServer) InitDb() {
+	db, err := sql.Open("mysql", "root:password@tcp(127.0.0.1:3306)/DOTAMATCH")
+
+	if err != nil {
+		log.Printf("Open database error: %s\n", err)
+	}
+	//defer db.Close()
+
+	err = db.Ping()
+	if err != nil {
+		log.Printf("%s\n", err)
+		return
+	}
+	s.db = db
+}
+
+func (s *apiServer) StartDaemonRoutines() {
+	s.fetchChan = make(chan string, 4096)
 	go func() {
 		for {
 			accountId := <-s.fetchChan
 			if len(accountId) == 0 {
 				fmt.Println("fetchChan broken")
 				return
-            }
-			fmt.Println("fetchId",accountId)
+			}
+			fmt.Println("fetchId", accountId)
 			s.fetchOneId(accountId)
-        }
-    }()
+		}
+	}()
 	if ConfigData.testFetchMatches {
 		s.history = &AllHistory{}
-		s.history.InitDb()
+		s.history.InitDb(s.db)
 		s.history.LoadDb()
 		go func() {
 			s.history.FetchProcess()
-        }()
-    }
-}
-
-func searchSubStrToInt(dataStr string,subStr string,appendLen int) (string,int){
-	findIndex := strings.Index(dataStr,subStr)
-	if findIndex < 0 {
-		return "", -1
-    }
-	countsIndex := findIndex + len(subStr) + appendLen
-	var checkRun bool
-	var i = 0
-	for ;i != 20;i++ {
-		if dataStr[countsIndex + i] < '0' || dataStr[countsIndex + i] > '9' {
-			checkRun = true
-			break
-        }
-    }
-	if checkRun == false {
-		return "", -1
-    }
-	return dataStr[countsIndex:countsIndex + i],countsIndex + i
-}
-
-func GetMatchCounts(accountId string) int{
-	data := httpGet("http://dotamax.com/player/detail/" + accountId + "/")
-	if data == nil {
-		return -1
-    }
-	dataStr := string(data)
-	subStr := "</div><div style=\"font-size: 11px;color:#777;\">"
-	countsStr,index := searchSubStrToInt(dataStr,subStr,9)
-	if index < 0 {
-		return -1
-    }
-	counts,err := strconv.Atoi(countsStr)
-	if err != nil {
-		return -1	
-    }
-	return counts
-}
-
-func (s *apiServer) fetchIdAll(accountId string) {
-	key := ConfigData.key
-	/*matchCount := GetMatchCounts(accountId)
-	if(matchCount < 0) {
-		return 200,"no find id"
-    }*/
-
-	reqUrl := getMatchHistoryFromDotamax + accountId + "/?skill=&ladder=&hero=-1&p="
-	index := 1
-	subStr := "sorttable_customkey=\""
-	//记录且仅记录一次maxMatchId的控制器
-	var saveMaxMatchId bool
-	lastMatchId := "999999999999"
-	var wg sync.WaitGroup
-	for ;;index++ {
-		data := httpGet(reqUrl + strconv.Itoa(index))
-		if data == nil {
-			fmt.Println("req error")
-			return
-        }
-		dataStr := string(data)
-		var countsIndex int
-		var curMatchId string
-		for i:=0;;i++{
-			curMatchId,countsIndex = searchSubStrToInt(dataStr,subStr,0)
-			if countsIndex < 0 {
-				break
-			}
-			//fmt.Println(curMatchId)
-			if saveMaxMatchId == false {
-				s.Players[accountId].MaxMatchId,_ = strconv.Atoi(curMatchId)
-				saveMaxMatchId = true
-            }
-
-            {
-				//如果当前的ID比上一个大，说明抓完了
-				id, _ := strconv.Atoi(curMatchId)
-				lastId, _ := strconv.Atoi(lastMatchId)
-				if id > lastId {
-					wg.Wait()
-					s.Save()
-					fmt.Println("OK")
-					return
-                }
-				//每几个协程就等一下，防止抓太快被forbid
-				if i % 4 == 0 {
-					wg.Wait()
-					time.Sleep(time.Second)
-                }
-			}
-
-			go func(matchId string) {
-				wg.Add(1)
-				defer wg.Done()
-				data := httpGet(getMatchDetails + "&match_id=" + matchId + "&key=" + key)
-				if data == nil {
-					fmt.Println("req error")
-					return
-				}
-				if s.Players[accountId].updatePlayerInfo(accountId, data) == 0 {
-					log.Println("MATCHID",matchId)
-                }else {
-					log.Println("ERRID",matchId)
-                }
-
-            }(curMatchId)
-			lastMatchId = curMatchId
-			dataStr = dataStr[countsIndex:]
-        }
-    }
-	wg.Wait()
-	s.Save()
-	fmt.Println("OK")
-	return
+		}()
+	}
 }
 
 func (s *apiServer) fetchId(params martini.Params) (int, string) {
@@ -220,120 +122,132 @@ func (s *apiServer) fetchId(params martini.Params) (int, string) {
 	return 200, "send fetch request success"
 }
 
-func (s *apiServer) fetchUpdate(params martini.Params) (int, string) {
-	//加锁获取一个overview镜像
-	overviewTemp := []PlayerOverview{}
-	s.overviewLock.Lock()
-	for _, overview := range s.overview{
-		overviewTemp = append(overviewTemp,overview)
-    }
-	s.overviewLock.Unlock()
-
-	for _, overview := range overviewTemp {
-		s.fetchChan <- overview.AccountId
-    }
-	return 200, "send update request success"
-}
-
 func (s *apiServer) fetchOneId(accountId string) {
 	if s.Players[accountId] == nil {
+		//loadFromMysql
 		s.Players[accountId] = new(PlayerInfo)
-		//从dotamax抓
 		s.Players[accountId].Init()
-		s.fetchIdAll(accountId)
-		return
 	}
+	//fetchOne
+	//for hero 0 - 109
+	//for fetch
 	//从steam抓
 	key := ConfigData.key
-	reqUrl := getMatchHistory + "&account_id=" + accountId + "&key=" + key
+	reqUrl := getMatchHistory + "account_id=" + accountId + "&key=" + key
 	data := httpGet(reqUrl + "&matches_requested=1")
 	//fmt.Printf("%s\n",data);
 	var matchHistory MatchHistory
 	json.Unmarshal(data, &matchHistory)
 	//fmt.Println(matchHistory);
-	
-	OldMaxMatchId := s.Players[accountId].MaxMatchId
-	if matchHistory.Result.NumResults != 0 {
-		if matchHistory.Result.Matches[0].MatchId <= s.Players[accountId].MaxMatchId {
-			fmt.Println("NoNewData")
-			return
-		}
-		s.Players[accountId].MaxMatchId = matchHistory.Result.Matches[0].MatchId
+
+	if matchHistory.Result.NumResults == 0 {
+		log.Println("no match accountId: ",accountId)
+		return
 	}
-	defer s.Save()
-	for {
-		fmt.Printf("matchHistory.Result.NumResults %d\n", matchHistory.Result.NumResults)
-		//一轮解析开始
-		var curMatchId int
-		for _, match := range matchHistory.Result.Matches {
-			//获取数据
-			curMatchId = match.MatchId
-			if curMatchId == OldMaxMatchId {
-				fmt.Println("OK")
-				return
-			}
-			data = httpGet(getMatchDetails + "&match_id=" + strconv.Itoa(curMatchId) + "&key=" + key)
-
-			if s.Players[accountId].updatePlayerInfo(accountId, data) == 0 {
-				log.Println("MATCHID",curMatchId)
-            }else {
-				log.Println("ERRID",curMatchId)
-            }
-		}
-		s.Players[accountId].MatchCount += matchHistory.Result.NumResults
-		fmt.Printf("MatchCount %d\n", s.Players[accountId].MatchCount)
-		//一轮解析结束
-
-		data = httpGet(reqUrl + "&matches_requested=100" + "&start_at_match_id=" + strconv.Itoa(curMatchId-1))
+	defer s.Save(accountId)
+	s.Players[accountId].MaxMatchSeq = matchHistory.Result.Matches[0].MatchSeqNum
+	for heroId, _ := range HeroIdStrMap {
+		data = httpGet(reqUrl + "&matches_requested=100" + "&hero_id=" + heroId)
 		json.Unmarshal(data, &matchHistory)
 		if matchHistory.Result.NumResults == 0 {
-			break
+			fmt.Println(heroId,"OK")
+			continue
 		}
-		//重复解析，说明解析完毕
-		if curMatchId == matchHistory.Result.Matches[0].MatchId {
-			fmt.Println("OK")
-			return
+		for {
+			fmt.Printf("matchHistory.Result.NumResults %d\n", matchHistory.Result.NumResults)
+			//一轮解析开始
+			var curMatchId int
+			for _, match := range matchHistory.Result.Matches {
+				//获取数据
+				curMatchId = match.MatchId
+				data = httpGet(getMatchDetails + "match_id=" + strconv.Itoa(curMatchId) + "&key=" + key)
+
+				if s.Players[accountId].updatePlayerInfo(accountId, data) == 0 {
+					log.Println("MATCHID", curMatchId)
+				} else {
+					log.Println("ERRID", curMatchId)
+				}
+			}
+			//s.Players[accountId].MatchCount += matchHistory.Result.NumResults
+			fmt.Printf("MatchCount %d\n", s.Players[accountId].MatchCount)
+			//一轮解析结束
+
+			data = httpGet(reqUrl + "&matches_requested=100" + "&start_at_match_id=" + strconv.Itoa(curMatchId-1) + "&hero_id=" + heroId)
+			json.Unmarshal(data, &matchHistory)
+			if matchHistory.Result.NumResults == 0 {
+				fmt.Println(heroId,"OK")
+				break
+			}
+			//重复解析，说明解析完毕
+			if curMatchId == matchHistory.Result.Matches[0].MatchId {
+				fmt.Println("OK")
+				break;
+			}
 		}
 	}
 	fmt.Println("OK")
 	return
 }
 
-func (s *apiServer) Save() {
-	//save对overview进行改写，需要加锁
-	s.overviewLock.Lock()
-	if len(s.overview) != 0 {
-		s.overview = make([]PlayerOverview, 0)
-	}
-	for name, playerInfo := range s.Players {
-		var tmp PlayerOverview
-		tmp.AccountId = name
-		tmp.Players = *playerInfo
-		s.overview = append(s.overview, tmp)
-	}
-	s.overviewLock.Unlock()
-	data, _ := json.MarshalIndent(s.overview, "", "    ")
-	//os.Remove("overview.data")
-	ioutil.WriteFile("overview.data", data, 0666)
-	//var overview []PlayerOverview
-	//json.Unmarshal(data, &overview)
-	//fmt.Println(overview)
-}
+func (s *apiServer) Save(accountId string) {
+	data, _ := json.Marshal(s.Players[accountId])
+		
+	stmtIns, err := s.db.Prepare("INSERT INTO PlayerInfo VALUES ( ?, ? )")
 
-func (s *apiServer) Load() {
-	//load启动时写入overview因此不需要加锁
-	s.Players = make(map[string]*PlayerInfo)
-
-	data, err := ioutil.ReadFile("overview.data")
 	if err != nil {
-		fmt.Println(err)
+		log.Printf("%s\n", err)
 		return
 	}
-	json.Unmarshal(data, &s.overview)
-	for _, overview := range s.overview {
-		p := overview.Players
-		s.Players[overview.AccountId] = &p
+	defer stmtIns.Close()
+
+	id,_ := strconv.Atoi(accountId)
+	_, err = stmtIns.Exec(id, string(data))
+
+	if err != nil {
+		log.Printf("%s\n", err)
+		return
 	}
+}
+
+
+func (s *apiServer) Load() {
+	s.Players = make(map[string]*PlayerInfo)
+	stmtOut, err := s.db.Prepare("SELECT * FROM PlayerInfo")
+
+	if err != nil {
+		log.Printf("%s\n", err)
+		return
+    }
+	defer stmtOut.Close()
+
+	rows,err := stmtOut.Query()
+
+	if err != nil {
+		log.Printf("%s\n", err)
+		return
+    }
+
+	defer rows.Close()
+
+	var accountId int
+	var data string
+	for rows.Next() {
+		err := rows.Scan(&accountId, &data)
+
+		log.Println(data)
+		if err != nil {
+			fmt.Printf("%s\n", err)
+        }
+		var p PlayerInfo	
+		json.Unmarshal([]byte(data), &p)
+		s.Players[strconv.Itoa(accountId)] = &p
+    }
+
+	err = rows.Err()
+	if err != nil {
+		log.Printf("%s\n", err)
+		return
+    }
 }
 
 func (s *apiServer) teamPick(params martini.Params) (int, string) {
@@ -347,11 +261,14 @@ func (s *apiServer) teamPick(params martini.Params) (int, string) {
 	//加锁获取一个overview镜像
 	overviewTemp := []PlayerOverview{}
 	s.overviewLock.Lock()
-	for _, overview := range s.overview{
-		overviewTemp = append(overviewTemp,overview)
-    }
+	for accountId, p := range s.Players {
+		var overview PlayerOverview
+		overview.AccountId = accountId
+		overview.Players = *p
+		overviewTemp = append(overviewTemp, overview)
+	}
 	s.overviewLock.Unlock()
-	
+
 	for _, overview := range overviewTemp {
 		heroBeatWinRate := make(map[string]map[string]float32)
 		heroWinRate := make(map[string]float32)
@@ -377,7 +294,7 @@ func (s *apiServer) teamPick(params martini.Params) (int, string) {
 				choiceHeroMap[originHeroName] = 0
 			}
 		}
-		
+
 		choiceHeroRateMap := make(map[string]float32)
 
 		for _, targetHeroName := range heroList {
@@ -403,8 +320,8 @@ func (s *apiServer) teamPick(params martini.Params) (int, string) {
 }
 
 type choiceForShow struct {
-	AccountId string
-	NickName string
+	AccountId         string
+	NickName          string
 	ChoiceHeroRateMap map[string]float32
 }
 
@@ -420,9 +337,12 @@ func (s *apiServer) teamPickWinRate(params martini.Params) (int, string) {
 	//加锁获取一个overview镜像
 	overviewTemp := []PlayerOverview{}
 	s.overviewLock.Lock()
-	for _, overview := range s.overview{
-		overviewTemp = append(overviewTemp,overview)
-    }
+	for accountId, p := range s.Players {
+		var overview PlayerOverview
+		overview.AccountId = accountId
+		overview.Players = *p
+		overviewTemp = append(overviewTemp, overview)
+	}
 	s.overviewLock.Unlock()
 
 	for _, overview := range overviewTemp {
@@ -473,13 +393,13 @@ func (s *apiServer) teamPickWinRate(params martini.Params) (int, string) {
 		}
 
 		//输出格式准备
-		choiceHeroRateMapForShow := &choiceForShow{AccountId: overview.AccountId, ChoiceHeroRateMap:choiceHeroRateMap}
-		if nickName, ok := ConfigData.nickNames[overview.AccountId];ok {
+		choiceHeroRateMapForShow := &choiceForShow{AccountId: overview.AccountId, ChoiceHeroRateMap: choiceHeroRateMap}
+		if nickName, ok := ConfigData.nickNames[overview.AccountId]; ok {
 			choiceHeroRateMapForShow.NickName = nickName
-        }else {
+		} else {
 			choiceHeroRateMapForShow.NickName = "未定义的昵称"
-        }
-		choiceHeroRateMapsForShow = append(choiceHeroRateMapsForShow,*choiceHeroRateMapForShow)
+		}
+		choiceHeroRateMapsForShow = append(choiceHeroRateMapsForShow, *choiceHeroRateMapForShow)
 		//show += ("用户ID" + overview.AccountId + string(data) + "\n")
 	}
 	data, _ := json.Marshal(choiceHeroRateMapsForShow)
@@ -498,9 +418,12 @@ func (s *apiServer) teamPickWinRateWithoutJSON(params martini.Params) (int, stri
 	//加锁获取一个overview镜像
 	overviewTemp := []PlayerOverview{}
 	s.overviewLock.Lock()
-	for _, overview := range s.overview{
-		overviewTemp = append(overviewTemp,overview)
-    }
+	for accountId, p := range s.Players {
+		var overview PlayerOverview
+		overview.AccountId = accountId
+		overview.Players = *p
+		overviewTemp = append(overviewTemp, overview)
+	}
 	s.overviewLock.Unlock()
 
 	for _, overview := range overviewTemp {
@@ -550,19 +473,19 @@ func (s *apiServer) teamPickWinRateWithoutJSON(params martini.Params) (int, stri
 			choiceHeroRateMap[choiceHeroName] /= float32(len(heroList))
 		}
 		show += ("<b>用户ID:" + overview.AccountId + "</b><br>")
-		if nickName, ok := ConfigData.nickNames[overview.AccountId];ok {
+		if nickName, ok := ConfigData.nickNames[overview.AccountId]; ok {
 			show += ("<b>昵称:" + nickName + "</b><br>")
-        }
+		}
 		show += ("<b>全部比赛:" + strconv.Itoa(overview.Players.MatchCount) + "场</b><br>")
 		choiceHeroList := MapSort(choiceHeroRateMap)
 		var count int
 		for _, choiceHero := range choiceHeroList {
-			show = fmt.Sprintf("%s%s:%.1f%%&nbsp;&nbsp;&nbsp;&nbsp;",show,choiceHero.Key,choiceHero.Value*100)
+			show = fmt.Sprintf("%s%s:%.1f%%&nbsp;&nbsp;&nbsp;&nbsp;", show, choiceHero.Key, choiceHero.Value*100)
 			count++
 			if (count % 5) == 0 {
 				show += "<br>"
-            }
-        }
+			}
+		}
 		show += "<br><br><br>"
 	}
 	show += "</html>"
@@ -576,16 +499,19 @@ func (s *apiServer) showOverview() (int, string) {
 	//加锁获取一个overview镜像
 	overviewTemp := []PlayerOverview{}
 	s.overviewLock.Lock()
-	for _, overview := range s.overview{
-		overviewTemp = append(overviewTemp,overview)
-    }
+	for accountId, p := range s.Players {
+		var overview PlayerOverview
+		overview.AccountId = accountId
+		overview.Players = *p
+		overviewTemp = append(overviewTemp, overview)
+	}
 	s.overviewLock.Unlock()
-	
+
 	for _, overview := range overviewTemp {
 		show += ("玩家ID:" + overview.AccountId + "\n")
-		if nickName, ok := ConfigData.nickNames[overview.AccountId];ok {
+		if nickName, ok := ConfigData.nickNames[overview.AccountId]; ok {
 			show += ("昵称:" + nickName + "\n")
-        }
+		}
 		heroBeatWinRate := make(map[string]map[string]float32)
 		heroWinRate := make(map[string]float32)
 		for name, counts := range overview.Players.HeroCounts {
@@ -614,5 +540,3 @@ func (s *apiServer) showOverview() (int, string) {
 	}
 	return 200, string(show)
 }
-
-

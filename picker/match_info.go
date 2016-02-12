@@ -21,6 +21,7 @@ type MatchHistory struct {
 		NumResults int `json:"num_results"`
 		Matches    []struct {
 			MatchId int `json:"match_id"`
+			MatchSeqNum int `json:"match_seq_num"`
 		} `json:"matches"`
 	} `json:"result"`
 }

@@ -9,8 +9,9 @@ import (
 )
 
 func httpGet(url string) []byte {
+	defer log.Println("httpGet Finished")
 	for i := 0;i != 20; i++ {
-		//log.Println("DEBUG-URL:" + url)
+		log.Println("DEBUG-URL: " + url)
 		resp, err := http.Get(url)
 		if err != nil {
 			if i != 0 {

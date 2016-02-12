@@ -1,5 +1,9 @@
 package picker
 
+import (
+	"strconv"
+)
+
 var HeroNameMap = map[string]int{
 	"亚巴顿":    102,
 	"炼金术士":   73,
@@ -115,12 +119,17 @@ var HeroNameMap = map[string]int{
 }
 
 var HeroIdMap map[int]string
+var HeroIdStrMap map[string]string
 
 func InitHeroIdMap() {
 	HeroIdMap = make(map[int]string)
 	for heroName, heroId := range HeroNameMap {
 		HeroIdMap[heroId] = heroName
 	}
+	HeroIdStrMap = make(map[string]string)
+	for heroId, heroName := range HeroIdMap {
+		HeroIdStrMap[strconv.Itoa(heroId)] = heroName
+    }
 }
 
 

@@ -6,9 +6,18 @@ import (
 	"sync"
 )
 
+/*CREATE TABLE `PlayerInfo` (
+	`AccountId` int(11) NOT NULL,
+	`Info` MEDIUMTEXT NOT NULL,
+	PRIMARY KEY (`AccountId`)
+);*/
+/*
+INSERT INTO PlayerInfo VALUES (0,"")
+*/
+
 type PlayerInfo struct {
 	MatchCount     int
-	MaxMatchId     int
+	MaxMatchSeq    int
 	HeroWins       map[string]int
 	HeroCounts     map[string]int
 	HeroBeatWins   map[string]int
@@ -40,15 +49,14 @@ func (p *PlayerInfo) updatePlayerInfo(accountId string, data []byte) int{
 		//数据分析的玩家
 		if strconv.Itoa(player.AccountId) == accountId {
 			hasUse = true
-			HeroName := HeroIdMap[player.HeroId]
+			useName = strconv.Itoa(player.HeroId)
 			//fmt.Println(strconv.Itoa(player.HeroId) + " " + HeroName)
-			useName = HeroName
 			//天辉
 			if player.PlayerSlot < 5 {
 				var enemyHeroName string
 				for _, enemyPlayer := range matchDetails.Result.Players[5:] {
 					//夜宴英雄名字
-					enemyHeroName = HeroIdMap[enemyPlayer.HeroId]
+					enemyHeroName = strconv.Itoa(enemyPlayer.HeroId)
 					enemyBeat = append(enemyBeat,enemyHeroName)
 				}
 				if matchDetails.Result.RadiantWin == true {
@@ -60,7 +68,7 @@ func (p *PlayerInfo) updatePlayerInfo(accountId string, data []byte) int{
 				var enemyHeroName string
 				for _, enemyPlayer := range matchDetails.Result.Players[:5] {
 					//天辉英雄名字
-					enemyHeroName = HeroIdMap[enemyPlayer.HeroId]
+					enemyHeroName = strconv.Itoa(enemyPlayer.HeroId)
 					enemyBeat = append(enemyBeat,enemyHeroName)
 				}
 				if matchDetails.Result.RadiantWin == false {

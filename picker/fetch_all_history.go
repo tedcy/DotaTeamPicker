@@ -121,19 +121,7 @@ func (h *AllHistory) FetchProcess() {
 	}
 }
 
-func (h *AllHistory) InitDb() {
-	db, err := sql.Open("mysql", "root:password@tcp(127.0.0.1:3306)/DOTAMATCH")
-
-	if err != nil {
-		log.Printf("Open database error: %s\n", err)
-	}
-	//defer db.Close()
-
-	err = db.Ping()
-	if err != nil {
-		log.Printf("%s\n", err)
-		return
-	}
+func (h *AllHistory) InitDb(db *sql.DB) {
 	h.db = db
 }
 
