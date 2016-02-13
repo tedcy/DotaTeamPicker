@@ -24,6 +24,7 @@ type AllHistory struct {
 	fetchSeqStart int64
 	fetchSeqEnd   int64
 	zeroSeq       int64
+	Players      map[string]*PlayerInfo
 	db            *sql.DB
 }
 
@@ -34,13 +35,11 @@ type AllHistory struct {
 );*/
 
 type MatchInfoMatch struct {
-	Players [10]struct {
-		AccountId int64 `json:"account_id"`
-		HeroId    int`json:"hero_id"`
-	} `json:"players"`
+	Players [10] Player `json:"players"`
 	MatchId     int64 `json:"match_id"`
 	MatchSeqNum int64 `json:"match_seq_num"`
 	StartTime   int64 `json:"start_time"`
+	RadiantWin bool `json:"radiant_win"`
 	HumanPlayers int `json:"human_players"`
 }
 
@@ -121,8 +120,9 @@ func (h *AllHistory) FetchProcess() {
 	}
 }
 
-func (h *AllHistory) InitDb(db *sql.DB) {
+func (h *AllHistory) InitDb(db *sql.DB, Players map[string]*PlayerInfo) {
 	h.db = db
+	h.Players = Players
 }
 
 func (h *AllHistory) LoadDb() {
@@ -203,6 +203,16 @@ func (h *AllHistory) SaveMatches(matches []MatchInfoMatch) {
         }
 		if !valid {
 			continue
+        }
+		for _,catchP := range m.Players {
+			p, ok := h.Players[strconv.FormatInt(catchP.AccountId,10)] 
+			if ok {
+				log.Println("fetchAllHistory match accountId",catchP.AccountId)
+				var matchDetails MatchDetails
+				matchDetails.Result.Players = m.Players
+				matchDetails.Result.RadiantWin = m.RadiantWin
+				p.updatePlayerInfo(strconv.FormatInt(catchP.AccountId,10),&matchDetails)
+            }
         }
 		i++
 		log.Println("ID: ",m.MatchId,"Players: ",accountIds)

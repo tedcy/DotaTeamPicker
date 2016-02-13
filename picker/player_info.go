@@ -1,7 +1,6 @@
 package picker
 
 import (
-	"encoding/json"
 	"strconv"
 	"sync"
 )
@@ -32,9 +31,7 @@ func (p *PlayerInfo) Init() {
 	p.HeroBeatCounts = make(map[string]int)
 }
 
-func (p *PlayerInfo) updatePlayerInfo(accountId string, data []byte) int{
-	var matchDetails MatchDetails
-	json.Unmarshal(data, &matchDetails)
+func (p *PlayerInfo) updatePlayerInfo(accountId string, matchDetails *MatchDetails) int{
 	//判断是否全部玩家选择英雄
 	for _, player := range matchDetails.Result.Players {
 		if player.HeroId == 0 {
@@ -47,7 +44,7 @@ func (p *PlayerInfo) updatePlayerInfo(accountId string, data []byte) int{
 	var hasUse bool
 	for _, player := range matchDetails.Result.Players {
 		//数据分析的玩家
-		if strconv.Itoa(player.AccountId) == accountId {
+		if strconv.FormatInt(player.AccountId,10) == accountId {
 			hasUse = true
 			useName = strconv.Itoa(player.HeroId)
 			//fmt.Println(strconv.Itoa(player.HeroId) + " " + HeroName)

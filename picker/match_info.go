@@ -6,13 +6,15 @@ var getMatchHistoryFromDotamax = "http://dotamax.com/player/match/"
 
 type MatchDetails struct {
 	Result struct {
-		Players [10]struct {
-			AccountId  int `json:"account_id"`
-			PlayerSlot int `json:"player_slot"`
-			HeroId     int `json:"hero_id"`
-		} `json:"players"`
+		Players [10] Player	`json:"players"`
 		RadiantWin bool `json:"radiant_win"`
 	} `json:"result"`
+}
+
+type Player struct {
+	AccountId int64 `json:"account_id"`
+	PlayerSlot int `json:"player_slot"`
+	HeroId    int`json:"hero_id"`
 }
 
 type MatchHistory struct {

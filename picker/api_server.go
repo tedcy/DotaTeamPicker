@@ -107,7 +107,7 @@ func (s *apiServer) StartDaemonRoutines() {
 	}()
 	if ConfigData.testFetchMatches {
 		s.history = &AllHistory{}
-		s.history.InitDb(s.db)
+		s.history.InitDb(s.db,s.Players)
 		s.history.LoadDb()
 		go func() {
 			s.history.FetchProcess()
@@ -161,8 +161,10 @@ func (s *apiServer) fetchOneId(accountId string) {
 				//获取数据
 				curMatchId = match.MatchId
 				data = httpGet(getMatchDetails + "match_id=" + strconv.Itoa(curMatchId) + "&key=" + key)
+				var matchDetails MatchDetails
+				json.Unmarshal(data, &matchDetails)
 
-				if s.Players[accountId].updatePlayerInfo(accountId, data) == 0 {
+				if s.Players[accountId].updatePlayerInfo(accountId, &matchDetails) == 0 {
 					log.Println("MATCHID", curMatchId)
 				} else {
 					log.Println("ERRID", curMatchId)
