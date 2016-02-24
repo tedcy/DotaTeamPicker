@@ -70,6 +70,7 @@ func NewApiServer() http.Handler {
 	r.Get("/fetch/:account_id", api.fetchId)
 	r.Get("/teampick/:herolist", api.teamPick)
 	r.Get("/teampickwr/:herolist", api.teamPickWinRate)
+	r.Get("/teampickd/:herolist", api.teamPickerWinRateDefault)
 	r.Get("/teampickwrwithoutjson/:herolist", api.teamPickWinRateWithoutJSON)
 	m.MapTo(r, (*martini.Routes)(nil))
 	m.Action(r.Handle)
@@ -491,6 +492,20 @@ func (s *apiServer) teamPickWinRateWithoutJSON(params martini.Params) (int, stri
 		show += "<br><br><br>"
 	}
 	show += "</html>"
+
+	return 200, show
+}
+
+func (s *apiServer) teamPickerWinRateDefault(params martini.Params) (int, string) {
+	heroListStr := params["herolist"]
+	//var show string
+	heroList := strings.Split(heroListStr, "-")
+	if len(heroList) == 0 {
+		return 200, "NoHero"
+	}
+	choiceHeroRateMap := s.history.Hero.showHeroInfo(heroList)
+	data,_ := json.Marshal(choiceHeroRateMap)
+	show := string(data)
 
 	return 200, show
 }

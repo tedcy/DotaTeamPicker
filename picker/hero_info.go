@@ -102,11 +102,41 @@ func (h *HeroInfo) updateHeroInfo(m *MatchInfoMatch){
     }
 	if m.RadiantWin {
 		for _,id := range HeroId[0:4] {
-			h.HeroCounts[id]++
+			h.HeroWins[id]++
 		}
     }else {
 		for _,id := range HeroId[5:9] {
-			h.HeroCounts[id]++
+			h.HeroWins[id]++
 		}
     }
+}
+
+func (h *HeroInfo) showHeroInfo(heroList []string) map[string]float32{
+	heroBeatWinRate := make(map[string]map[string]float32)
+	heroWinRate := make(map[string]float32)
+	
+	for Id,_ := range HeroIdStrMap {
+		heroWinRate[Id] = float32(h.HeroWins[Id]) / float32(h.HeroCounts[Id])	
+    }
+	for Id1,_ := range HeroIdStrMap {
+		for Id2,_ := range HeroIdStrMap {
+			if Id1 == Id2 {
+				continue
+            }
+			name := MergeHeroName(Id1,Id2)
+			if heroBeatWinRate[name] == nil {
+				heroBeatWinRate[name] = make(map[string]float32)
+			}
+			winRate := float32(h.HeroBeatWins[name]) / float32(h.HeroBeatCounts[name])
+			heroBeatWinRate[Id2][Id1] = winRate - heroWinRate[Id1]
+		}
+	}
+	choiceHeroRateMap := make(map[string]float32)
+	for Id,_ := range HeroIdStrMap {
+		for _, targetHeroName := range heroList {
+			choiceHeroRateMap[Id] += heroBeatWinRate[targetHeroName][Id]
+		}
+		choiceHeroRateMap[Id] /= float32(len(heroList))
+	}
+	return choiceHeroRateMap
 }
