@@ -106,10 +106,10 @@ func (s *apiServer) StartDaemonRoutines() {
 			s.fetchOneId(accountId)
 		}
 	}()
+	s.history = &AllHistory{}
+	s.history.InitDb(s.db,s.Players)
+	s.history.LoadDb()
 	if ConfigData.testFetchMatches {
-		s.history = &AllHistory{}
-		s.history.InitDb(s.db,s.Players)
-		s.history.LoadDb()
 		go func() {
 			s.history.FetchProcess()
 		}()
@@ -504,7 +504,10 @@ func (s *apiServer) teamPickerWinRateDefault(params martini.Params) (int, string
 		return 200, "NoHero"
 	}
 	choiceHeroRateMap := s.history.Hero.showHeroInfo(heroList)
-	data,_ := json.Marshal(choiceHeroRateMap)
+	data,err := json.Marshal(choiceHeroRateMap)
+	if err != nil {
+		return 200, err.Error()
+    }
 	show := string(data)
 
 	return 200, show

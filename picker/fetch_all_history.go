@@ -193,7 +193,7 @@ func (h *AllHistory) SaveMatches(matches []MatchInfoMatch) {
 
 	var i int
 	for _, m := range matches {
-		var accountIds string
+		//var accountIds string
 		valid := true
 		//检查比赛内容是否有10人参与，是否全部选择了英雄
 		if m.HumanPlayers < 10 {
@@ -228,7 +228,7 @@ func (h *AllHistory) SaveMatches(matches []MatchInfoMatch) {
 		//更新所有英雄对战胜率
 		h.Hero.updateHeroInfo(&m)
 		i++
-		log.Println("ID: ",m.MatchId,"Players: ",accountIds)
+		//log.Println("ID: ",m.MatchId,"Players: ",accountIds)
 		/*_, err = stmtIns.Exec(m.MatchId, accountIds)
 
 		if err != nil {

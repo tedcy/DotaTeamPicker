@@ -124,11 +124,15 @@ func (h *HeroInfo) showHeroInfo(heroList []string) map[string]float32{
 				continue
             }
 			name := MergeHeroName(Id1,Id2)
-			if heroBeatWinRate[name] == nil {
-				heroBeatWinRate[name] = make(map[string]float32)
+			if heroBeatWinRate[Id2] == nil {
+				heroBeatWinRate[Id2] = make(map[string]float32)
 			}
-			winRate := float32(h.HeroBeatWins[name]) / float32(h.HeroBeatCounts[name])
-			heroBeatWinRate[Id2][Id1] = winRate - heroWinRate[Id1]
+			if h.HeroBeatCounts[name] != 0{
+				winRate := float32(h.HeroBeatWins[name]) / float32(h.HeroBeatCounts[name])
+				heroBeatWinRate[Id2][Id1] = winRate - heroWinRate[Id1]
+            }else {
+				heroBeatWinRate[Id2][Id1] = 0
+            }
 		}
 	}
 	choiceHeroRateMap := make(map[string]float32)
