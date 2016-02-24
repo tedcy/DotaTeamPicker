@@ -17,7 +17,7 @@ import (
 	PRIMARY KEY (`nouse`)
 );*/
 /*
-INSERT INTO MatchHistory VALUES( 0, 0, 0, 1)
+INSERT INTO MatchHistory VALUES( 0, 0, 0, 1);
 */
 
 type AllHistory struct {
@@ -25,6 +25,7 @@ type AllHistory struct {
 	fetchSeqEnd   int64
 	zeroSeq       int64
 	Players      map[string]*PlayerInfo
+	Hero		  HeroInfo
 	db            *sql.DB
 }
 
@@ -83,8 +84,13 @@ func (h *AllHistory) FetchProcess() {
 	for {
 		//第一次运行
 		if h.fetchSeqEnd == 0 {
-			h.fetchSeqStart = 1700000000
-			h.fetchSeqEnd = 1700000000
+			//h.fetchSeqStart = 1700000000
+			//h.fetchSeqEnd = 1700000000
+			data := httpGet("https://api.steampowered.com/IDOTA2Match_570/GetMatchHistory/V001/?matches_requested=1&key=09D4D194967FAA9D99D9884BA0BEF3F7")
+			var matchHistory MatchHistory
+			json.Unmarshal(data, &matchHistory)
+			h.fetchSeqStart = int64(matchHistory.Result.Matches[0].MatchSeqNum)
+			h.fetchSeqEnd = int64(matchHistory.Result.Matches[0].MatchSeqNum)
 			log.Println("start",h.fetchSeqStart,"end",h.fetchSeqEnd)
 			time.Sleep(time.Second)
 			continue
@@ -159,9 +165,11 @@ func (h *AllHistory) LoadDb() {
 		log.Printf("%s\n", err)
 		return
 	}
+	h.Hero.LoadDb(h.db)
 }
 
 func (h *AllHistory) SaveHistory() {
+	h.Hero.SaveDb(h.db)
 	stmtSaveHistory, err := h.db.Prepare("UPDATE MatchHistory SET fetchSeqStart = ?,fetchSeqEnd = ?,zeroSeq = ? WHERE nouse = 1")
 
 	if err != nil {
@@ -175,18 +183,19 @@ func (h *AllHistory) SaveHistory() {
 
 func (h *AllHistory) SaveMatches(matches []MatchInfoMatch) {
 
-	stmtIns, err := h.db.Prepare("INSERT INTO MatchWithPlayers VALUES( ?, ? )")
+	/*stmtIns, err := h.db.Prepare("INSERT INTO MatchWithPlayers VALUES( ?, ? )")
 
 	if err != nil {
 		log.Printf("%s\n", err)
 		return
 	}
-	defer stmtIns.Close()
+	defer stmtIns.Close()*/
 
 	var i int
 	for _, m := range matches {
 		var accountIds string
 		valid := true
+		//检查比赛内容是否有10人参与，是否全部选择了英雄
 		if m.HumanPlayers < 10 {
 			valid = false
         } else {
@@ -195,34 +204,37 @@ func (h *AllHistory) SaveMatches(matches []MatchInfoMatch) {
 					valid = false
 					break
 				}
-				if accountIds == "" {
-					accountIds = strconv.FormatInt(p.AccountId,10)
-				}
-				accountIds += (";" + strconv.FormatInt(p.AccountId,10))
+				//if accountIds == "" {
+				//	accountIds = strconv.FormatInt(p.AccountId,10)
+				//}
+				//accountIds += (";" + strconv.FormatInt(p.AccountId,10))
 			}
         }
 		if !valid {
 			continue
         }
+		//更新已经注册的玩家数据
 		for _,catchP := range m.Players {
 			p, ok := h.Players[strconv.FormatInt(catchP.AccountId,10)] 
 			//存在并且大于已经记录的最大值
 			if ok && m.MatchSeqNum > int64(p.MaxMatchSeq) {
-				log.Println("fetchAllHistory match accountId",catchP.AccountId)
+				log.Println("fetchAllHistory match accountId",catchP.AccountId,m.MatchSeqNum)
 				var matchDetails MatchDetails
 				matchDetails.Result.Players = m.Players
 				matchDetails.Result.RadiantWin = m.RadiantWin
 				p.updatePlayerInfo(strconv.FormatInt(catchP.AccountId,10),&matchDetails)
             }
         }
+		//更新所有英雄对战胜率
+		h.Hero.updateHeroInfo(&m)
 		i++
 		log.Println("ID: ",m.MatchId,"Players: ",accountIds)
-		_, err = stmtIns.Exec(m.MatchId, accountIds)
+		/*_, err = stmtIns.Exec(m.MatchId, accountIds)
 
 		if err != nil {
 			log.Printf("%s\n", err)
 			return
-		}
+		}*/
 	}
 	log.Println("parse: ",len(matches),"save: ",i)
 }
