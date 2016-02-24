@@ -207,7 +207,7 @@ func (h *AllHistory) SaveMatches(matches []MatchInfoMatch) {
 		for _,catchP := range m.Players {
 			p, ok := h.Players[strconv.FormatInt(catchP.AccountId,10)] 
 			//存在并且大于已经记录的最大值
-			if ok && m.MatchSeqNum > p.MaxMatchSeq {
+			if ok && m.MatchSeqNum > int64(p.MaxMatchSeq) {
 				log.Println("fetchAllHistory match accountId",catchP.AccountId)
 				var matchDetails MatchDetails
 				matchDetails.Result.Players = m.Players
