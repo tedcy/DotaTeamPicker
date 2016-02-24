@@ -1,38 +1,53 @@
 package picker
 
 import (
-	"net/http"
 	"io/ioutil"
+	"log"
+	"net"
+	"net/http"
 	"sort"
 	"strings"
-	"log"
+	"time"
 )
 
 func httpGet(url string) []byte {
 	defer log.Println("httpGet Finished")
-	for i := 0;i != 20; i++ {
+	for i := 0; i != 20; i++ {
 		log.Println("DEBUG-URL: " + url)
-		resp, err := http.Get(url)
+		c := http.Client{
+			Transport: &http.Transport{
+				Dial: func(netw, addr string) (net.Conn, error) {
+					deadline := time.Now().Add(25 * time.Second)
+					c, err := net.DialTimeout(netw, addr, time.Second*20)
+					if err != nil {
+						return nil, err
+					}
+					c.SetDeadline(deadline)
+					return c, nil
+				},
+			},
+		}
+		resp, err := c.Get(url)
 		if err != nil {
 			if i != 0 {
-				log.Println("retry get ",url," ",i)
-            }
+				log.Println("retry get ", url, " ", i)
+			}
 			continue
-        }
-		if resp.StatusCode != 200{
+		}
+		if resp.StatusCode != 200 {
 			if i != 0 {
-				log.Println("retry get ",url," ",i)
-            }
+				log.Println("retry get ", url, " ", i)
+			}
 			resp.Body.Close()
 			continue
 		}
 		body, err := ioutil.ReadAll(resp.Body)
 		resp.Body.Close()
-		if err == nil{
+		if err == nil {
 			return body
 		}
 		return nil
-    }
+	}
 	return nil
 }
 
@@ -57,7 +72,6 @@ type PairList []Pair
 func (p PairList) Len() int           { return len(p) }
 func (p PairList) Less(i, j int) bool { return p[i].Value < p[j].Value }
 func (p PairList) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
-
 
 func MergeHeroName(heroName string, enemyHeroName string) string {
 	return heroName + "-" + enemyHeroName
