@@ -71,6 +71,7 @@ func NewApiServer() http.Handler {
 	r.Get("/teampick/:herolist", api.teamPick)
 	r.Get("/teampickwr/:herolist", api.teamPickWinRate)
 	r.Get("/teampickd/:herolist", api.teamPickerWinRateDefault)
+	r.Get("/teampickdtest/:herolist", api.teamPickerWinRateDefaultTest)
 	r.Get("/teampickwrwithoutjson/:herolist", api.teamPickWinRateWithoutJSON)
 	m.MapTo(r, (*martini.Routes)(nil))
 	m.Action(r.Handle)
@@ -509,6 +510,44 @@ func (s *apiServer) teamPickerWinRateDefault(params martini.Params) (int, string
 		return 200, err.Error()
     }
 	show := string(data)
+
+	return 200, show
+}
+
+func (s *apiServer) teamPickerWinRateDefaultTest(params martini.Params) (int, string) {
+	heroListStr := params["herolist"]
+	var show string
+	heroList := strings.Split(heroListStr, "-")
+	if len(heroList) == 0 {
+		return 200, "NoHero"
+	}
+	show += "敌方英雄列表"
+	for _,id := range heroList {
+		show += "-"
+		show += HeroIdStrMap[id]
+    }
+	show += "\n"
+	choiceHeroRateMap := s.history.Hero.showHeroInfo(heroList)
+	test := make(map[string]float32)
+	for id,name := range HeroIdStrMap {
+		var valid bool
+		valid = true
+		for _,enemy := range heroList {
+			if id == enemy {
+				valid = false
+            }
+        }
+		if !valid {
+			continue
+        }
+		test[name] = choiceHeroRateMap[id]
+    }
+	data,err := json.Marshal(test)
+	if err != nil {
+		return 200, err.Error()
+    }
+	show += "可选英雄克制指数"
+	show += string(data)
 
 	return 200, show
 }

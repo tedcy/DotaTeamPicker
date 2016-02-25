@@ -85,18 +85,18 @@ func (h *HeroInfo) LoadDb(db *sql.DB) {
 }
 
 func (h *HeroInfo) updateHeroInfo(m *MatchInfoMatch){
-	log.Println(m.MatchSeqNum)
+	//log.Println(m.MatchSeqNum)
 	HeroId := [10]string{}
 	for i,p := range m.Players {
 		HeroId[i] = strconv.Itoa(p.HeroId)
 	}
 	for _,id := range HeroId {
-		log.Println("old ",id, h.HeroCounts[id])
+		//log.Println("old ",id, h.HeroCounts[id])
 		h.HeroCounts[id]++
     }
 	for _,id1 := range HeroId[0:5] {
 		for _,id2 := range HeroId[5:10] {
-			log.Println(MergeHeroName(id1,id2))
+			//log.Println(MergeHeroName(id1,id2))
 			h.HeroBeatCounts[MergeHeroName(id1,id2)]++
 			if m.RadiantWin {
 				h.HeroBeatWins[MergeHeroName(id1,id2)]++
@@ -105,7 +105,7 @@ func (h *HeroInfo) updateHeroInfo(m *MatchInfoMatch){
     }
 	for _,id2 := range HeroId[5:10] {
 		for _,id1 := range HeroId[0:5] {
-			log.Println(MergeHeroName(id2,id1))
+			//log.Println(MergeHeroName(id2,id1))
 			h.HeroBeatCounts[MergeHeroName(id2,id1)]++
 			if !m.RadiantWin {
 				h.HeroBeatWins[MergeHeroName(id2,id1)]++
@@ -114,12 +114,12 @@ func (h *HeroInfo) updateHeroInfo(m *MatchInfoMatch){
     }
 	if m.RadiantWin {
 		for _,id := range HeroId[0:5] {
-			log.Println("Radiant old ",id, h.HeroWins[id])
+			//log.Println("Radiant old ",id, h.HeroWins[id])
 			h.HeroWins[id]++
 		}
     }else {
 		for _,id := range HeroId[5:10] {
-			log.Println("Dire old ",id, h.HeroWins[id])
+			//log.Println("Dire old ",id, h.HeroWins[id])
 			h.HeroWins[id]++
 		}
     }
@@ -151,8 +151,18 @@ func (h *HeroInfo) showHeroInfo(heroList []string) map[string]float32{
 	}
 	choiceHeroRateMap := make(map[string]float32)
 	for Id,_ := range HeroIdStrMap {
+		var valid bool
+		valid = true
+		for _,enemy := range heroList {
+			if Id == enemy {
+				valid = false
+            }
+        }
+		if !valid {
+			continue
+        }
 		for _, targetHeroName := range heroList {
-			choiceHeroRateMap[Id] += heroBeatWinRate[targetHeroName][Id]
+				choiceHeroRateMap[Id] += heroBeatWinRate[targetHeroName][Id]
 		}
 		choiceHeroRateMap[Id] /= float32(len(heroList))
 	}
