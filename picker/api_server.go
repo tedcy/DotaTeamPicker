@@ -67,6 +67,7 @@ func NewApiServer() http.Handler {
 		r.Redirect("/overview")
 	})
 	r.Get("/overview", api.showOverview)
+	r.Get("/herooverview", api.HeroOverviewTest)
 	r.Get("/fetch/:account_id", api.fetchId)
 	r.Get("/teampick/:herolist", api.teamPick)
 	r.Get("/teampickwr/:herolist", api.teamPickWinRate)
@@ -528,26 +529,24 @@ func (s *apiServer) teamPickerWinRateDefaultTest(params martini.Params) (int, st
     }
 	show += "\n"
 	choiceHeroRateMap := s.history.Hero.showHeroInfo(heroList)
-	test := make(map[string]float32)
-	for id,name := range HeroIdStrMap {
-		var valid bool
-		valid = true
-		for _,enemy := range heroList {
-			if id == enemy {
-				valid = false
-            }
-        }
-		if !valid {
-			continue
-        }
-		test[name] = choiceHeroRateMap[id]
+	pList := MapSort(choiceHeroRateMap)
+	show += "可选英雄克制指数\n"
+	for _,p := range pList {
+		show = fmt.Sprintf("%s%s:%.1f%%\n", show, HeroIdStrMap[p.Key], p.Value*100)
     }
-	data,err := json.Marshal(test)
-	if err != nil {
-		return 200, err.Error()
+
+	return 200, show
+}
+
+func (s *apiServer) HeroOverviewTest(params martini.Params) (int, string) {
+	var show string
+	choiceHeroRateMap := s.history.Hero.showHeroInfoOverview()
+	for Id1,Id1Map := range choiceHeroRateMap {
+		pList := MapSort(Id1Map)
+		for _,p := range pList {
+			show = fmt.Sprintf("%s%svs%s:%.1f%%\n", show, HeroIdStrMap[Id1], HeroIdStrMap[p.Key], p.Value*100)
+        }
     }
-	show += "可选英雄克制指数"
-	show += string(data)
 
 	return 200, show
 }

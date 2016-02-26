@@ -138,12 +138,12 @@ func (h *HeroInfo) showHeroInfo(heroList []string) map[string]float32{
 				continue
             }
 			name := MergeHeroName(Id1,Id2)
-			if heroBeatWinRate[Id2] == nil {
-				heroBeatWinRate[Id2] = make(map[string]float32)
+			if heroBeatWinRate[Id1] == nil {
+				heroBeatWinRate[Id1] = make(map[string]float32)
 			}
 			if h.HeroBeatCounts[name] != 0{
 				winRate := float32(h.HeroBeatWins[name]) / float32(h.HeroBeatCounts[name])
-				heroBeatWinRate[Id2][Id1] = winRate - heroWinRate[Id1]
+				heroBeatWinRate[Id1][Id2] = winRate + heroWinRate[Id2] - heroWinRate[Id1] - 0.5
             }else {
 				heroBeatWinRate[Id2][Id1] = 0
             }
@@ -162,9 +162,36 @@ func (h *HeroInfo) showHeroInfo(heroList []string) map[string]float32{
 			continue
         }
 		for _, targetHeroName := range heroList {
-				choiceHeroRateMap[Id] += heroBeatWinRate[targetHeroName][Id]
+				choiceHeroRateMap[Id] += heroBeatWinRate[Id][targetHeroName]
 		}
 		choiceHeroRateMap[Id] /= float32(len(heroList))
 	}
 	return choiceHeroRateMap
+}
+
+func (h *HeroInfo) showHeroInfoOverview() map[string]map[string]float32{
+	heroBeatWinRate := make(map[string]map[string]float32)
+	heroWinRate := make(map[string]float32)
+	
+	for Id,_ := range HeroIdStrMap {
+		heroWinRate[Id] = float32(h.HeroWins[Id]) / float32(h.HeroCounts[Id])	
+    }
+	for Id1,_ := range HeroIdStrMap {
+		for Id2,_ := range HeroIdStrMap {
+			if Id1 == Id2 {
+				continue
+            }
+			name := MergeHeroName(Id1,Id2)
+			if heroBeatWinRate[Id1] == nil {
+				heroBeatWinRate[Id1] = make(map[string]float32)
+			}
+			if h.HeroBeatCounts[name] != 0{
+				winRate := float32(h.HeroBeatWins[name]) / float32(h.HeroBeatCounts[name])
+				heroBeatWinRate[Id1][Id2] = winRate + heroWinRate[Id2] - heroWinRate[Id1] - 0.5
+            }else {
+				heroBeatWinRate[Id2][Id1] = 0
+            }
+		}
+	}
+	return heroBeatWinRate
 }
