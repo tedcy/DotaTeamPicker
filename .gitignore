@@ -1,4 +1,5 @@
 main
 config
 overview.data
+*.sql
 log
