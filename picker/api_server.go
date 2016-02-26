@@ -290,7 +290,7 @@ func (s *apiServer) teamPick(params martini.Params) (int, string) {
 				winRate := float32(overview.Players.HeroBeatWins[name]) / float32(counts)
 				//data := fmt.Sprintf("%s%3d -%3d，胜率%4.4g%%，克制指数%4.4g%%\n",
 				//name, overview.Players.HeroBeatWins[name],counts, winRate*100,  (winRate - heroWinRate[originHeroName]) * 100)
-				heroBeatWinRate[enemyHeroName][originHeroName] = winRate - heroWinRate[originHeroName]
+				heroBeatWinRate[enemyHeroName][originHeroName] = winRate + heroWinRate[enemyHeroName] - heroWinRate[originHeroName] - 0.5
 			}
 		}
 		choiceHeroMap := make(map[string]int)
