@@ -67,7 +67,8 @@ func NewApiServer() http.Handler {
 		r.Redirect("/overview")
 	})
 	r.Get("/overview", api.showOverview)
-	r.Get("/herooverview", api.HeroOverviewTest)
+	r.Get("/herooverviewtest", api.HeroOverviewTest)
+	r.Get("/herooverview", api.HeroOverview)
 	r.Get("/fetch/:account_id", api.fetchId)
 	r.Get("/teampick/:herolist", api.teamPick)
 	r.Get("/teampickwr/:herolist", api.teamPickWinRate)
@@ -534,6 +535,17 @@ func (s *apiServer) teamPickerWinRateDefaultTest(params martini.Params) (int, st
 	for _,p := range pList {
 		show = fmt.Sprintf("%s%s:%.1f%%\n", show, HeroIdStrMap[p.Key], p.Value*100)
     }
+
+	return 200, show
+}
+
+func (s *apiServer) HeroOverview(params martini.Params) (int, string) {
+	choiceHeroRateMap := s.history.Hero.showHeroInfoOverview()
+	data,err := json.Marshal(choiceHeroRateMap)
+	if err != nil {
+		return 200, err.Error()
+    }
+	show := string(data)
 
 	return 200, show
 }
