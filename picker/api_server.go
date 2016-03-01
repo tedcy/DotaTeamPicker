@@ -288,7 +288,7 @@ func (s *apiServer) teamPickAdvantage(params martini.Params) (int, string) {
 			heroWinRate[name] = winRate
 		}
 		for name, counts := range overview.Players.HeroBeatCounts {
-			if counts >= 2 {
+			if counts >= 5 {
 				originHeroName, enemyHeroName := SplitHeroName(name)
 				if heroBeatWinRate[enemyHeroName] == nil {
 					heroBeatWinRate[enemyHeroName] = make(map[string]float32)
@@ -297,6 +297,7 @@ func (s *apiServer) teamPickAdvantage(params martini.Params) (int, string) {
 				//data := fmt.Sprintf("%s%3d -%3d，胜率%4.4g%%，克制指数%4.4g%%\n",
 				//name, overview.Players.HeroBeatWins[name],counts, winRate*100,  (winRate - heroWinRate[originHeroName]) * 100)
 				heroBeatWinRate[enemyHeroName][originHeroName] = winRate + allHeroWinRate[enemyHeroName] - heroWinRate[originHeroName] - 0.5
+				//log.Println(originHeroName,enemyHeroName,winRate,allHeroWinRate[enemyHeroName],heroWinRate[originHeroName])
 			}
 		}
 		choiceHeroMap := make(map[string]int)
@@ -322,6 +323,7 @@ func (s *apiServer) teamPickAdvantage(params martini.Params) (int, string) {
 				}else {
 					choiceHeroRateMap[choiceHeroName] += allHeroRateMap[choiceHeroName][targetHeroName]
                 }
+				//log.Println(choiceHeroName,targetHeroName,heroBeatWinRate[targetHeroName][choiceHeroName],allHeroRateMap[choiceHeroName][targetHeroName])
 			}
 			choiceHeroRateMap[choiceHeroName] /= float32(len(heroList))
 		}
