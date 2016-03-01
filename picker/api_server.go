@@ -279,6 +279,7 @@ func (s *apiServer) teamPickAdvantage(params martini.Params) (int, string) {
 	for Id,_ := range HeroIdStrMap {
 		allHeroWinRate[Id] = float32(s.history.Hero.HeroWins[Id]) / float32(s.history.Hero.HeroCounts[Id])	
     }
+	allHeroRateMap := s.history.Hero.showHeroInfoOverview()
 	for _, overview := range overviewTemp {
 		heroBeatWinRate := make(map[string]map[string]float32)
 		heroWinRate := make(map[string]float32)
@@ -318,7 +319,9 @@ func (s *apiServer) teamPickAdvantage(params martini.Params) (int, string) {
 				//fmt.Println(targetHeroName,choiceHeroName,heroBeatWinRate[targetHeroName][choiceHeroName])
 				if winRate, ok := heroBeatWinRate[targetHeroName][choiceHeroName]; ok {
 					choiceHeroRateMap[choiceHeroName] += winRate
-				}
+				}else {
+					choiceHeroRateMap[choiceHeroName] += allHeroRateMap[choiceHeroName][targetHeroName]
+                }
 			}
 			choiceHeroRateMap[choiceHeroName] /= float32(len(heroList))
 		}
@@ -331,7 +334,10 @@ func (s *apiServer) teamPickAdvantage(params martini.Params) (int, string) {
 		}
 		choiceHeroRateMapsForShow = append(choiceHeroRateMapsForShow, *choiceHeroRateMapForShow)
 	}
-	data, _ := json.Marshal(choiceHeroRateMapsForShow)
+	data, err := json.Marshal(choiceHeroRateMapsForShow)
+	if err != nil {
+		return 200, err.Error()
+    }
 
 	return 200, string(data)
 }
