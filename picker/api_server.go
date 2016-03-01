@@ -70,8 +70,8 @@ func NewApiServer() http.Handler {
 	r.Get("/herooverviewtest", api.HeroOverviewTest)
 	r.Get("/herooverview", api.HeroOverview)
 	r.Get("/fetch/:account_id", api.fetchId)
-	r.Get("/teampick/:herolist", api.teamPick)
-	r.Get("/teampickwr/:herolist", api.teamPickWinRate)
+	r.Get("/teampickwr/:herolist", api.teamPickAdvantage)
+	r.Get("/teampick/:herolist", api.teamPickWinRate)
 	r.Get("/teampickd/:herolist", api.teamPickerWinRateDefault)
 	r.Get("/teampickdtest/:herolist", api.teamPickerWinRateDefaultTest)
 	r.Get("/teampickwrwithoutjson/:herolist", api.teamPickWinRateWithoutJSON)
@@ -256,13 +256,13 @@ func (s *apiServer) Load() {
     }
 }
 
-func (s *apiServer) teamPick(params martini.Params) (int, string) {
+func (s *apiServer) teamPickAdvantage(params martini.Params) (int, string) {
 	heroListStr := params["herolist"]
-	var show string
 	heroList := strings.Split(heroListStr, "-")
 	if len(heroList) == 0 {
 		return 200, "NoHero"
 	}
+	var choiceHeroRateMapsForShow []choiceForShow
 
 	//加锁获取一个overview镜像
 	overviewTemp := []PlayerOverview{}
@@ -318,11 +318,18 @@ func (s *apiServer) teamPick(params martini.Params) (int, string) {
 			}
 			choiceHeroRateMap[choiceHeroName] /= float32(len(heroList))
 		}
-		data, _ := json.Marshal(choiceHeroRateMap)
-		show += ("用户ID" + overview.AccountId + string(data) + "\n")
+		//输出格式准备
+		choiceHeroRateMapForShow := &choiceForShow{AccountId: overview.AccountId, ChoiceHeroRateMap: choiceHeroRateMap}
+		if nickName, ok := ConfigData.nickNames[overview.AccountId]; ok {
+			choiceHeroRateMapForShow.NickName = nickName
+		} else {
+			choiceHeroRateMapForShow.NickName = "未定义的昵称"
+		}
+		choiceHeroRateMapsForShow = append(choiceHeroRateMapsForShow, *choiceHeroRateMapForShow)
 	}
+	data, _ := json.Marshal(choiceHeroRateMapsForShow)
 
-	return 200, show
+	return 200, string(data)
 }
 
 type choiceForShow struct {
